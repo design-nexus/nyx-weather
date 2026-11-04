@@ -1,4 +1,5 @@
-//! Waybar custom module output (`nyx-weather --waybar`) and headless cache refresh.
+//! Waybar custom module output (`nyx-weather --waybar`), a summary for widgets
+//! (`nyx-weather --json`), and headless cache refresh.
 //!
 //! Reuses the SQLite forecast cache directly without starting GTK, refreshing
 //! only when the cached entry is missing or older than `refresh_interval_mins`.
@@ -6,6 +7,65 @@
 use crate::{backend, prefs};
 use nyx_weather_core::{ForecastSnapshot, cardinal_direction};
 use serde_json::json;
+
+/// The active location's forecast from the cache, fetched first when it's stale.
+fn active_snapshot(p: &prefs::Prefs) -> Option<(ForecastSnapshot, bool)> {
+    let loc = p.active_location()?;
+    let max_age = (p.refresh_interval_mins.max(5) as i64) * 60;
+    let lock = std::fs::File::create(crate::paths::cache_db().with_extension("waybar.lock")).ok();
+    let _held = lock.as_ref().map(|f| f.lock());
+    let outcome = backend::load_or_fetch(&loc, &p.open_meteo_config(), max_age, false);
+    outcome.snapshot.map(|s| (s, outcome.stale_fallback))
+}
+
+/// Emit one line of JSON for widgets: now, today and the next twelve hours, every value
+/// already formatted in the user's units. Flat objects, so a shell script can read it.
+pub fn print_summary_json() {
+    let p = prefs::read_disk();
+    match active_snapshot(&p) {
+        Some((mut snap, stale)) => {
+            snap.advance_to(backend::now_epoch());
+            println!("{}", format_summary(&snap, &p, stale));
+        }
+        None => println!("{}", json!({ "error": "No location or cached forecast yet" })),
+    }
+}
+
+pub fn format_summary(snap: &ForecastSnapshot, p: &prefs::Prefs, stale_fallback: bool) -> serde_json::Value {
+    let units = p.units();
+    let cur = &snap.current;
+    let (hi, lo) = snap.today_high_low_c();
+    let hours: Vec<serde_json::Value> = snap
+        .upcoming_hours(13)
+        .into_iter()
+        .skip(1)
+        .map(|h| {
+            json!({
+                "time": crate::sections::format_clock_label(&h.time, units.use_24h_time),
+                "temperature": units.temperature.format(h.temperature_c),
+                "icon": h.condition.icon_name(h.is_day),
+                "precipitation": h.precipitation_probability_pct,
+            })
+        })
+        .collect();
+    json!({
+        "location": snap.location.name,
+        "place": snap.location.display_name(),
+        "condition": cur.condition.label(),
+        "icon": cur.condition.icon_name(cur.is_day),
+        "temperature": units.temperature.format(cur.temperature_c),
+        "feels_like": units.temperature.format(cur.apparent_temperature_c),
+        "high": units.temperature.format(hi),
+        "low": units.temperature.format(lo),
+        "wind": format!("{} {}", units.wind_speed.format(cur.wind_speed_kmh), cardinal_direction(cur.wind_direction_deg)),
+        "humidity": cur.humidity_pct,
+        "rain": snap.rain_nowcast(),
+        "alert": snap.alerts.first().map(|a| format!("{}: {}", a.severity.label(), a.event)),
+        "updated": backend::human_age(snap.fetched_at),
+        "offline": stale_fallback,
+        "hours": hours,
+    })
+}
 
 /// Emit a single line of Waybar JSON for the active saved location.
 pub fn print_waybar_json(refresh_if_stale: bool) {
@@ -225,5 +285,36 @@ mod tests {
         assert!(tip.contains("Austin · Texas, United States — Clear sky"));
         assert!(tip.contains("High: 77° · Low: 59°"));
         assert!(tip.contains("Wind: 10 mph NW"));
+
+        let mut snap = snap;
+        snap.hourly = (14..18)
+            .map(|h| nyx_weather_core::HourlyForecast {
+                time: format!("2026-10-18T{h}:00"),
+                temperature_c: 20.0 + (h - 14) as f64,
+                apparent_temperature_c: 20.0,
+                precipitation_probability_pct: 10,
+                precipitation_mm: 0.0,
+                condition: WeatherCondition::Clear,
+                is_day: true,
+                wind_speed_kmh: 0.0,
+                wind_gusts_kmh: None,
+                wind_direction_deg: None,
+                uv_index: None,
+                humidity_pct: None,
+                dew_point_c: None,
+                pressure_hpa: None,
+                cloud_cover_pct: None,
+                visibility_m: None,
+                shortwave_radiation_wm2: None,
+            })
+            .collect();
+        let sum = format_summary(&snap, &p, false);
+        assert_eq!(sum["temperature"], "68°");
+        assert_eq!(sum["high"], "77°");
+        assert_eq!(sum["icon"], "weather-clear-symbolic");
+        let hours = sum["hours"].as_array().unwrap();
+        assert_eq!(hours.len(), 3, "the hours after this one");
+        assert_eq!(hours[0]["time"], "3 PM");
+        assert_eq!(hours[0]["temperature"], "70°");
     }
 }

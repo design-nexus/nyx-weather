@@ -27,6 +27,7 @@ const USAGE: &str = "Usage: nyx-weather [OPTIONS]\n\
   --section SECTION   open a section (overview, hourly, daily, radar, air-quality, astronomy, settings)\n\
   --waybar            output Waybar custom-module JSON from the SQLite cache\n\
   --waybar-cached     output Waybar JSON strictly from local cache without network\n\
+  --json              output now, today and the next 12 hours as JSON (for widgets)\n\
   --refresh           refresh all saved locations in the SQLite cache and exit\n";
 
 fn main() -> glib::ExitCode {
@@ -44,6 +45,10 @@ fn main() -> glib::ExitCode {
     // Headless CLI modes run without initializing GTK or opening a display connection.
     if args.iter().any(|a| a == "--waybar") || args.get(1).is_some_and(|a| a == "waybar") {
         waybar::print_waybar_json(true);
+        return glib::ExitCode::SUCCESS;
+    }
+    if args.iter().any(|a| a == "--json") {
+        waybar::print_summary_json();
         return glib::ExitCode::SUCCESS;
     }
     if args.iter().any(|a| a == "--waybar-cached") {
