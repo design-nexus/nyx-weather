@@ -14,8 +14,8 @@ path = "src/main.rs"
 [dependencies]
 nyx-core = { git = "https://github.com/design-nexus/nyx-core.git", rev = "47c5e0f328b4042df4c08fc317510644a64d1124" }
 nyx-actions = { git = "https://github.com/design-nexus/nyx-core.git", rev = "47c5e0f328b4042df4c08fc317510644a64d1124", default-features = false }
-nyx-theme = { git = "https://github.com/design-nexus/nyx-design.git", rev = "2aaa5c2c632606ccf1522b20fa7b6207806c2327" }
-nyx-ui = { git = "https://github.com/design-nexus/nyx-design.git", rev = "2aaa5c2c632606ccf1522b20fa7b6207806c2327" }
+nyx-theme = { git = "https://github.com/design-nexus/nyx-design.git", rev = "d168cbfa57ee229df327f0c85abe5f4b75201b99" }
+nyx-ui = { git = "https://github.com/design-nexus/nyx-design.git", rev = "d168cbfa57ee229df327f0c85abe5f4b75201b99" }
 nyx-weather-core = { path = "../../crates/nyx-weather-core" }
 anyhow = "1.0.104"
 chrono = { version = "0.4", default-features = false, features = ["clock", "std"] }
