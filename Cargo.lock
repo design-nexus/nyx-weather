@@ -544,7 +544,7 @@ dependencies = [
  "gobject-sys",
  "libc",
  "system-deps",
- "windows-sys 0.52.0",
+ "windows-sys 0.61.2",
 ]
 
 [[package]]
@@ -1270,7 +1270,7 @@ dependencies = [
 [[package]]
 name = "nyx-theme"
 version = "0.1.0"
-source = "git+https://github.com/design-nexus/nyx-design.git?rev=06f65ab2b8d076f5fd92b3b5e6c047e638b98890#06f65ab2b8d076f5fd92b3b5e6c047e638b98890"
+source = "git+https://github.com/design-nexus/nyx-design.git?rev=2aaa5c2c632606ccf1522b20fa7b6207806c2327#2aaa5c2c632606ccf1522b20fa7b6207806c2327"
 dependencies = [
  "gtk4",
  "nyx-core",
@@ -1281,7 +1281,7 @@ dependencies = [
 [[package]]
 name = "nyx-theme-core"
 version = "0.2.0"
-source = "git+https://github.com/design-nexus/nyx-design.git?rev=06f65ab2b8d076f5fd92b3b5e6c047e638b98890#06f65ab2b8d076f5fd92b3b5e6c047e638b98890"
+source = "git+https://github.com/design-nexus/nyx-design.git?rev=2aaa5c2c632606ccf1522b20fa7b6207806c2327#2aaa5c2c632606ccf1522b20fa7b6207806c2327"
 dependencies = [
  "nyx-config",
  "nyx-core",
@@ -1293,7 +1293,7 @@ dependencies = [
 [[package]]
 name = "nyx-ui"
 version = "0.1.0"
-source = "git+https://github.com/design-nexus/nyx-design.git?rev=06f65ab2b8d076f5fd92b3b5e6c047e638b98890#06f65ab2b8d076f5fd92b3b5e6c047e638b98890"
+source = "git+https://github.com/design-nexus/nyx-design.git?rev=2aaa5c2c632606ccf1522b20fa7b6207806c2327#2aaa5c2c632606ccf1522b20fa7b6207806c2327"
 dependencies = [
  "gtk4",
  "nyx-core",
@@ -1496,7 +1496,7 @@ dependencies = [
  "once_cell",
  "socket2",
  "tracing",
- "windows-sys 0.52.0",
+ "windows-sys 0.61.2",
 ]
 
 [[package]]
