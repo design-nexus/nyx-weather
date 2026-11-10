@@ -74,7 +74,7 @@ nyx-weather --refresh            Refresh every saved place and exit
 
 - Settings: `~/.config/nyx-weather/settings.toml`
 - Forecast, search, map tile and grid cache: `~/.cache/nyx-weather/weather.db`
-- Nyx Assistant works Weather over the session bus: `current`, `forecast`, `query`, `locations`, `select_location`, `refresh`.
+- `nyx weather …`, Glimpse (its Weather panel) and Nyx Assistant work Weather over the session bus: `weather.current`, `weather.forecast`, `weather.query`, `weather.locations`, `weather.select_location`, `weather.refresh` and `weather.open` (the names without `weather.` still work). D-Bus starts Weather without a window for them, and it quits once idle.
 
 ## Data
 

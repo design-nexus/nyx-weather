@@ -36,7 +36,9 @@ fn main() -> glib::ExitCode {
         name: "Weather",
     });
 
-    let args: Vec<String> = std::env::args().collect();
+    let id = std::env::var("WEATHER_APP_ID").unwrap_or_else(|_| APP_ID.to_string());
+    nyx_core::control::describe_if_asked(&control::description(&id));
+    let mut args: Vec<String> = std::env::args().collect();
     if args.iter().any(|a| a == "--help" || a == "-h") {
         print!("{USAGE}");
         return glib::ExitCode::SUCCESS;
@@ -69,14 +71,22 @@ fn main() -> glib::ExitCode {
         unsafe { std::env::set_var("GSK_RENDERER", "ngl") };
     }
 
-    let id = std::env::var("WEATHER_APP_ID").unwrap_or_else(|_| APP_ID.to_string());
-    let app = gtk::Application::builder()
-        .application_id(id)
-        .flags(gio::ApplicationFlags::HANDLES_COMMAND_LINE)
-        .build();
+    // D-Bus starts Weather with --gapplication-service for a call from nyx, Glimpse or
+    // Nyx Assistant: no window, and it quits once idle. GLib won't parse the flag for
+    // apps that handle their own command line.
+    let service = args.iter().any(|a| a == "--gapplication-service");
+    args.retain(|a| a != "--gapplication-service");
+    let mut flags = gio::ApplicationFlags::HANDLES_COMMAND_LINE;
+    if service {
+        flags |= gio::ApplicationFlags::IS_SERVICE;
+    }
+    let app = gtk::Application::builder().application_id(id).flags(flags).build();
 
-    app.connect_startup(|app| {
-        nyx_core::control::serve_async(app, control::tools(), control::handle);
+    app.connect_startup(move |app| {
+        control::serve(app);
+        if service {
+            app.set_inactivity_timeout(10_000);
+        }
     });
 
     app.connect_command_line(|app, cl| {
@@ -111,5 +121,5 @@ fn main() -> glib::ExitCode {
         prefs::flush();
     });
 
-    app.run()
+    app.run_with_args(&args)
 }

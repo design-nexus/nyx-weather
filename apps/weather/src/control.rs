@@ -7,47 +7,104 @@ use nyx_weather_core::{evaluate_query, parse_query};
 use serde_json::{Value, json};
 
 pub fn tools() -> Value {
+    let location = json!({"type": "string", "description": "A city or place; the active saved location when left out"});
+    let only_location = json!({"type": "object", "properties": {"location": location}, "additionalProperties": false});
+    let none = json!({"type": "object", "properties": {}, "additionalProperties": false});
     json!([
-        {
-            "name": "current",
-            "description": "Get the current weather conditions and daily summary for the active or named location",
-            "parameters": {
-                "location": "Optional city or location name; omit for the active saved location"
-            }
-        },
-        {
-            "name": "forecast",
-            "description": "Get the 7-day and 24-hour weather forecast for the active or named location (reusable by Calendar)",
-            "parameters": {
-                "location": "Optional city or location name; omit for the active saved location"
-            }
-        },
-        {
-            "name": "query",
-            "description": "Answer a natural weather query such as 'weather', 'weather tomorrow', 'rain Friday', or 'weather London'",
-            "parameters": {
-                "query": "Query string"
-            }
-        },
-        {
-            "name": "locations",
-            "description": "List saved locations and the currently active location ID"
-        },
-        {
-            "name": "select_location",
-            "description": "Switch the active location by name or ID",
-            "parameters": {
-                "location": "Location name or ID"
-            }
-        },
-        {
-            "name": "refresh",
-            "description": "Refresh the active location's weather forecast"
-        }
+        {"name": "weather.current", "description": "The weather now and today's high and low for the active or named location.",
+         "inputSchema": only_location, "annotations": {"title": "Weather now", "readOnlyHint": true},
+         "x-nyx": {"risk": "read_only", "aliases": ["now"], "positional": ["location"], "result": "object"}},
+        {"name": "weather.forecast", "description": "The next 24 hours and 7 days for the active or named location (Calendar reuses it).",
+         "inputSchema": only_location, "annotations": {"title": "Forecast", "readOnlyHint": true},
+         "x-nyx": {"risk": "read_only", "aliases": ["week"], "positional": ["location"], "result": "object"}},
+        {"name": "weather.query", "description": "Answer a weather question such as 'tomorrow', 'rain Friday' or 'London'.",
+         "inputSchema": {"type": "object", "properties": {"query": {"type": "string", "minLength": 1}}, "required": ["query"], "additionalProperties": false},
+         "annotations": {"title": "Ask about the weather", "readOnlyHint": true},
+         "x-nyx": {"risk": "read_only", "aliases": ["ask"], "positional": ["query"], "result": "object"}},
+        {"name": "weather.locations", "description": "The saved locations and which one is active.",
+         "inputSchema": none, "annotations": {"title": "Saved locations", "readOnlyHint": true},
+         "x-nyx": {"risk": "read_only", "aliases": ["places"], "result": "object"}},
+        {"name": "weather.select_location", "description": "Make a saved location active, by name or ID.",
+         "inputSchema": {"type": "object", "properties": {"location": {"type": "string", "minLength": 1}}, "required": ["location"], "additionalProperties": false},
+         "annotations": {"title": "Switch location"},
+         "x-nyx": {"risk": "writes", "confirmation": "never", "aliases": ["use"], "positional": ["location"], "result": "object"}},
+        {"name": "weather.refresh", "description": "Fetch the active location's forecast again.",
+         "inputSchema": none, "annotations": {"title": "Refresh"},
+         "x-nyx": {"risk": "writes", "confirmation": "never", "result": "object"}},
+        {"name": "weather.open", "description": "Open Weather's window, at a saved location when given.",
+         "inputSchema": only_location, "annotations": {"title": "Open Weather"},
+         "x-nyx": {"risk": "writes", "confirmation": "never", "positional": ["location"], "result": "none"}},
     ])
 }
 
+/// API 2: the tools and the app. Weather answers without its window (D-Bus starts
+/// it as a service), and Glimpse's Weather panel watches `now`.
+pub fn description(app_id: &str) -> Value {
+    json!({
+        "tools": tools(),
+        "nyx": {"api": 2, "app": app_id, "name": "Weather", "icon": crate::APP_ID, "namespaces": ["weather"], "aliases": ["forecast"],
+                "bus_name": app_id, "activation": "dbus", "default": "weather.query", "open": {"action": "weather.open"},
+                "topics": [{"name": "now", "sensitive": true}],
+                "panel": {"id": "weather", "topics": ["now"], "size": {"min": [420, 300], "preferred": [500, 380]}}}
+    })
+}
+
+thread_local! {
+    static SERVICE: std::cell::RefCell<Option<control::Service>> = const { std::cell::RefCell::new(None) };
+    static TIMER: std::cell::RefCell<Option<gtk::glib::SourceId>> = const { std::cell::RefCell::new(None) };
+}
+
+/// Register the interface (from `connect_startup`); `now` is read again every
+/// five minutes (from the forecast cache when it's fresh) only while watched.
+pub fn serve(app: &gtk::Application) {
+    use gtk::prelude::*;
+    let id = app.application_id().map(|s| s.to_string()).unwrap_or_else(|| crate::APP_ID.to_string());
+    let window_app = app.clone();
+    let Some(service) = control::serve_with(app, description(&id), move |request, answer| {
+        if request.action == "weather.open" {
+            window::present(&window_app, None, request.arguments["location"].as_str());
+            return answer(Ok(Value::Null));
+        }
+        let changes = matches!(request.action.as_str(), "weather.select_location" | "weather.refresh");
+        handle(&request.action, request.arguments, Box::new(move |r| {
+            answer(r.map_err(|e| nyx_actions::Error::new(nyx_actions::ErrorKind::Failed, e)));
+            if changes {
+                publish();
+            }
+        }));
+    }) else {
+        return;
+    };
+    service.on_watch(|_, on| {
+        TIMER.with(|t| {
+            if let Some(id) = t.borrow_mut().take() {
+                id.remove();
+            }
+            if on {
+                publish();
+                *t.borrow_mut() = Some(gtk::glib::timeout_add_seconds_local(300, || {
+                    publish();
+                    gtk::glib::ControlFlow::Continue
+                }));
+            }
+        });
+    });
+    SERVICE.with(|s| *s.borrow_mut() = Some(service));
+}
+
+fn publish() {
+    let Some(service) = SERVICE.with(|s| s.borrow().clone()) else { return };
+    if !service.watched("now") {
+        return;
+    }
+    handle("weather.current", json!({}), Box::new(move |r| {
+        service.publish("now", r.unwrap_or_else(|e| json!({"error": e})));
+    }));
+}
+
+/// Tools by name; the names from before `weather.` (`current`, `forecast`, …) still work.
 pub fn handle(name: &str, args: Value, reply: Reply) {
+    let name = name.strip_prefix("weather.").unwrap_or(name);
     match name {
         "locations" => {
             let p = prefs::get();
@@ -129,6 +186,15 @@ pub fn handle(name: &str, args: Value, reply: Reply) {
                             "low": units.temperature.format_with_unit(lo),
                             "wind": units.wind_speed.format(snap.current.wind_speed_kmh),
                             "humidity_pct": snap.current.humidity_pct,
+                            "icon": snap.current.condition.icon_name(snap.current.is_day),
+                            "days": snap.daily.iter().take(5).map(|d| json!({
+                                "date": d.date,
+                                "condition": d.condition.label(),
+                                "icon": d.condition.icon_name(true),
+                                "high": units.temperature.format_with_unit(d.temp_max_c),
+                                "low": units.temperature.format_with_unit(d.temp_min_c),
+                                "rain_pct": d.precipitation_probability_max_pct,
+                            })).collect::<Vec<_>>(),
                             "alerts": snap.alerts,
                             "attribution": snap.attribution.attribution_text,
                         }))
@@ -181,5 +247,18 @@ pub fn handle(name: &str, args: Value, reply: Reply) {
             );
         }
         _ => reply(Err(format!("unknown tool: {name}"))),
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn the_description_is_api_2() {
+        let d = nyx_actions::Description::from_value(&description(crate::APP_ID), None).unwrap();
+        assert_eq!(d.actions.len(), 7);
+        assert!(d.actions.iter().all(|a| !a.asks()));
+        assert_eq!(d.app.panel.as_ref().map(|p| p.id.as_str()), Some("weather"));
     }
 }
