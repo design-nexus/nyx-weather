@@ -13,10 +13,10 @@ pub fn tools() -> Value {
     json!([
         {"name": "weather.current", "description": "The weather now and today's high and low for the active or named location.",
          "inputSchema": only_location, "annotations": {"title": "Weather now", "readOnlyHint": true},
-         "x-nyx": {"risk": "read_only", "aliases": ["now"], "positional": ["location"], "result": "object"}},
+         "x-nyx": {"suggest": {"location": "weather.saved"}, "risk": "read_only", "aliases": ["now"], "positional": ["location"], "result": "object"}},
         {"name": "weather.forecast", "description": "The next 24 hours and 7 days for the active or named location (Calendar reuses it).",
          "inputSchema": only_location, "annotations": {"title": "Forecast", "readOnlyHint": true},
-         "x-nyx": {"risk": "read_only", "aliases": ["week"], "positional": ["location"], "result": "object"}},
+         "x-nyx": {"suggest": {"location": "weather.saved"}, "risk": "read_only", "aliases": ["week"], "positional": ["location"], "result": "object"}},
         {"name": "weather.query", "description": "Answer a weather question such as 'tomorrow', 'rain Friday' or 'London'.",
          "inputSchema": {"type": "object", "properties": {"query": {"type": "string", "minLength": 1}}, "required": ["query"], "additionalProperties": false},
          "annotations": {"title": "Ask about the weather", "readOnlyHint": true},
@@ -27,13 +27,17 @@ pub fn tools() -> Value {
         {"name": "weather.select_location", "description": "Make a saved location active, by name or ID.",
          "inputSchema": {"type": "object", "properties": {"location": {"type": "string", "minLength": 1}}, "required": ["location"], "additionalProperties": false},
          "annotations": {"title": "Switch location"},
-         "x-nyx": {"risk": "writes", "confirmation": "never", "aliases": ["use"], "positional": ["location"], "result": "object"}},
+         "x-nyx": {"suggest": {"location": "weather.saved"}, "risk": "writes", "confirmation": "never", "aliases": ["use"], "positional": ["location"], "result": "object"}},
+        {"name": "weather.saved", "description": "Saved locations whose name starts with a prefix, for completing a location.",
+         "inputSchema": {"type": "object", "properties": {"prefix": {"type": "string"}, "limit": {"type": "integer", "minimum": 1, "maximum": 50}}, "additionalProperties": false},
+         "annotations": {"title": "Saved locations by name", "readOnlyHint": true},
+         "x-nyx": {"risk": "read_only", "result": "object"}},
         {"name": "weather.refresh", "description": "Fetch the active location's forecast again.",
          "inputSchema": none, "annotations": {"title": "Refresh"},
          "x-nyx": {"risk": "writes", "confirmation": "never", "result": "object"}},
         {"name": "weather.open", "description": "Open Weather's window, at a saved location when given.",
          "inputSchema": only_location, "annotations": {"title": "Open Weather"},
-         "x-nyx": {"risk": "writes", "confirmation": "never", "positional": ["location"], "result": "none"}},
+         "x-nyx": {"suggest": {"location": "weather.saved"}, "risk": "writes", "confirmation": "never", "positional": ["location"], "result": "none"}},
     ])
 }
 
@@ -106,6 +110,18 @@ fn publish() {
 pub fn handle(name: &str, args: Value, reply: Reply) {
     let name = name.strip_prefix("weather.").unwrap_or(name);
     match name {
+        "saved" => {
+            let prefix = args["prefix"].as_str().unwrap_or("").to_lowercase();
+            let limit = args["limit"].as_u64().unwrap_or(20).min(50) as usize;
+            let found: Vec<Value> = prefs::get()
+                .saved_locations
+                .iter()
+                .filter(|l| l.name.to_lowercase().starts_with(&prefix))
+                .take(limit)
+                .map(|l| json!({"value": l.name, "label": l.name, "detail": l.display_name()}))
+                .collect();
+            reply(Ok(Value::Array(found)));
+        }
         "locations" => {
             let p = prefs::get();
             reply(Ok(json!({
@@ -257,7 +273,8 @@ mod tests {
     #[test]
     fn the_description_is_api_2() {
         let d = nyx_actions::Description::from_value(&description(crate::APP_ID), None).unwrap();
-        assert_eq!(d.actions.len(), 7);
+        assert_eq!(d.actions.len(), 8);
+        assert_eq!(d.action("weather.current").unwrap().suggest.get("location").map(String::as_str), Some("weather.saved"));
         assert!(d.actions.iter().all(|a| !a.asks()));
         assert_eq!(d.app.panel.as_ref().map(|p| p.id.as_str()), Some("weather"));
     }
