@@ -27,7 +27,7 @@ const USAGE: &str = "Usage: nyx-weather [OPTIONS]\n\
   --section SECTION   open a section (overview, hourly, daily, radar, air-quality, astronomy, settings)\n\
   --waybar            output Waybar custom-module JSON from the SQLite cache\n\
   --waybar-cached     output Waybar JSON strictly from local cache without network\n\
-  --json              output now, today and the next 12 hours as JSON (for widgets)\n\
+  --json              output now, the next 12 hours and 5 days as JSON (for widgets and the bar)\n\
   --refresh           refresh all saved locations in the SQLite cache and exit\n";
 
 fn main() -> glib::ExitCode {

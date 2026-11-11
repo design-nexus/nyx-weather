@@ -1,4 +1,4 @@
-//! Waybar custom module output (`nyx-weather --waybar`), a summary for widgets
+//! Waybar custom module output (`nyx-weather --waybar`), a summary for widgets and the bar
 //! (`nyx-weather --json`), and headless cache refresh.
 //!
 //! Reuses the SQLite forecast cache directly without starting GTK, refreshing
@@ -18,7 +18,7 @@ fn active_snapshot(p: &prefs::Prefs) -> Option<(ForecastSnapshot, bool)> {
     outcome.snapshot.map(|s| (s, outcome.stale_fallback))
 }
 
-/// Emit one line of JSON for widgets: now, today and the next twelve hours, every value
+/// Emit one line of JSON for widgets: now, the next twelve hours and five days, every value
 /// already formatted in the user's units. Flat objects, so a shell script can read it.
 pub fn print_summary_json() {
     let p = prefs::read_disk();
@@ -48,6 +48,31 @@ pub fn format_summary(snap: &ForecastSnapshot, p: &prefs::Prefs, stale_fallback:
             })
         })
         .collect();
+    // Today and the next four days; `low_c`/`high_c` put each day's range on one scale.
+    let days: Vec<serde_json::Value> = snap
+        .daily
+        .iter()
+        .take(5)
+        .enumerate()
+        .map(|(i, d)| {
+            let name = match i {
+                0 => "Today".to_string(),
+                _ => chrono::NaiveDate::parse_from_str(&d.date, "%Y-%m-%d").map(|n| n.format("%a").to_string()).unwrap_or_default(),
+            };
+            json!({
+                "day": name,
+                "icon": d.condition.icon_name(true),
+                "condition": d.condition.label(),
+                "high": units.temperature.format(d.temp_max_c),
+                "low": units.temperature.format(d.temp_min_c),
+                "high_c": d.temp_max_c,
+                "low_c": d.temp_min_c,
+                "precipitation": d.precipitation_probability_max_pct,
+            })
+        })
+        .collect();
+    let today = snap.daily.first();
+    let clock = |t: &Option<String>| t.as_deref().map(|t| crate::sections::format_clock_label(t, units.use_24h_time));
     json!({
         "location": snap.location.name,
         "place": snap.location.display_name(),
@@ -64,6 +89,10 @@ pub fn format_summary(snap: &ForecastSnapshot, p: &prefs::Prefs, stale_fallback:
         "updated": backend::human_age(snap.fetched_at),
         "offline": stale_fallback,
         "hours": hours,
+        "days": days,
+        "uv": cur.uv_index.map(|u| u.round() as i64),
+        "sunrise": today.and_then(|d| clock(&d.sunrise)),
+        "sunset": today.and_then(|d| clock(&d.sunset)),
     })
 }
 
@@ -316,5 +345,8 @@ mod tests {
         assert_eq!(hours.len(), 3, "the hours after this one");
         assert_eq!(hours[0]["time"], "3 PM");
         assert_eq!(hours[0]["temperature"], "70°");
+        let days = sum["days"].as_array().unwrap();
+        assert_eq!((days[0]["day"].as_str(), days[0]["high"].as_str()), (Some("Today"), Some("77°")));
+        assert_eq!(sum["uv"], 5);
     }
 }
