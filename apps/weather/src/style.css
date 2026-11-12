@@ -349,6 +349,12 @@ button.detail-expand-header {
   background: @row_hover;
 }
 
+/* The icon-only sidebar hides these labels itself. The shared sheet's font-size: 0
+   for them can stick after the sidebar expands again, so they keep their size. */
+.settings-navigation.compact .nav-group {
+  font-size: 0.846em;
+}
+
 /* ---------- Saved locations in sidebar ---------- */
 
 .nav-loc-badge {

@@ -204,9 +204,18 @@ fn build(app: &gtk::Application) {
         if s.group != last_group {
             let g = widgets::label(&s.group.to_uppercase(), "nav-group");
             g.add_css_class("compact-hide");
-            if last_group.is_empty() {
+            let first = last_group.is_empty();
+            if first {
                 g.add_css_class("first");
             }
+            // The first group in the app's accent, the others from the theme's
+            // [sections.weather] ("Maps & Radar" is `maps-radar`).
+            let section = if first {
+                nyx_ui::sidebar::ACCENT_SECTION.to_string()
+            } else {
+                s.group.to_lowercase().split_whitespace().filter(|w| *w != "&").collect::<Vec<_>>().join("-")
+            };
+            nyx_ui::sidebar::set_section(&g, &section);
             list.append(&g);
             last_group = s.group;
         }
@@ -221,6 +230,7 @@ fn build(app: &gtk::Application) {
     // Saved Locations group in the sidebar
     let loc_group = widgets::label("SAVED LOCATIONS", "nav-group");
     loc_group.add_css_class("compact-hide");
+    nyx_ui::sidebar::set_section(&loc_group, "saved-locations");
     list.append(&loc_group);
 
     let locations_box = gtk::Box::new(gtk::Orientation::Vertical, 0);
