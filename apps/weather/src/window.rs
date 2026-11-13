@@ -1,7 +1,7 @@
-//! The main Weather window: the header (the app and the active location, the
-//! sidebar toggle; the location search in the middle; when the forecast was
-//! updated, refresh, floating and settings), the collapsible sidebar (Forecast,
-//! Maps & Radar, Environment, and Saved Locations) and a crossfading section stack.
+//! The main Weather window: the header (the app and the sidebar toggle; the place
+//! search in the middle; when the forecast was updated, refresh and settings), the
+//! collapsible sidebar (your places with their temperatures, then Forecast, Maps and
+//! Outdoors) and a crossfading section stack.
 
 use crate::sections::{self, Section};
 use crate::widgets;
@@ -35,10 +35,12 @@ struct Ui {
     nav: gtk::Box,
     nav_items: HashMap<String, gtk::Button>,
     locations_box: gtk::Box,
+    foot_icon: gtk::Image,
+    foot_label: gtk::Label,
     search: gtk::SearchEntry,
+    search_hint: gtk::Label,
     search_results_panel: gtk::Box,
     search_results_list: gtk::Box,
-    header: chrome::AppHeader,
     /// When the forecast was updated (or that it's refreshing), at the header's end.
     status_readout: gtk::Label,
     overlay: gtk::Overlay,
@@ -53,6 +55,7 @@ struct Ui {
 thread_local! {
     static UI: RefCell<Option<Rc<RefCell<Ui>>>> = const { RefCell::new(None) };
     static NARROW: Cell<bool> = const { Cell::new(false) };
+    static SMALL: Cell<bool> = const { Cell::new(false) };
     static SEARCH_SEQ: Cell<u64> = const { Cell::new(0) };
     static REFRESH_SEQ: Cell<u64> = const { Cell::new(0) };
     /// The locations the search strip shows, so Enter can open the first.
@@ -74,6 +77,15 @@ pub fn shortcut_caps(keys: &str) -> Vec<&str> {
 /// True when the window is narrow (floating, or under 980 px).
 pub fn is_narrow() -> bool {
     NARROW.with(|n| n.get())
+}
+
+/// Window width under which pages stack what sits side by side (a floating window,
+/// a third of the screen).
+const SMALL_WIDTH: i32 = 640;
+
+/// True when the window is under [`SMALL_WIDTH`].
+pub fn is_small() -> bool {
+    SMALL.with(|s| s.get())
 }
 
 fn ui() -> Option<Rc<RefCell<Ui>>> {
@@ -113,6 +125,7 @@ pub fn present(app: &gtk::Application, section: Option<&str>, location_arg: Opti
     } else {
         refresh_active(false);
     }
+    refresh_other_places();
     restart_refresh_timer();
 
     // Developer aid: WEATHER_SNAPSHOT=/path.png renders the window to a PNG
@@ -135,31 +148,38 @@ pub fn present(app: &gtk::Application, section: Option<&str>, location_arg: Opti
     }
 }
 
-fn nav_button(icon: &str, title: &str, tooltip: &str) -> (gtk::Button, gtk::Label) {
+fn nav_button(icon: &str, title: &str, tooltip: &str, readout: &str) -> gtk::Button {
     let button = gtk::Button::new();
     button.add_css_class("nav-item");
     let content = gtk::Box::new(gtk::Orientation::Horizontal, 12);
     let img = gtk::Image::from_icon_name(icon);
-    let color_class = match icon {
-        "weather-clear-symbolic" => "cond-sun",
-        "view-continuous-symbolic" => "cond-rain",
-        "x-office-calendar-symbolic" => "cond-warm",
-        "find-location-symbolic" => "cond-wind",
-        "weather-fog-symbolic" => "cond-uv",
-        "weather-clear-night-symbolic" => "cond-cold",
-        _ => "",
-    };
-    if !color_class.is_empty() {
-        img.add_css_class(color_class);
-    }
+    img.add_css_class("nav-icon");
     content.append(&img);
     let l = widgets::label(title, "nav-label");
     l.set_hexpand(true);
+    l.set_xalign(0.0);
     l.set_ellipsize(gtk::pango::EllipsizeMode::End);
+    l.add_css_class("compact-hide");
     content.append(&l);
+    if !readout.is_empty() {
+        let r = widgets::label(readout, "nav-readout");
+        r.add_css_class("compact-hide");
+        content.append(&r);
+    }
     button.set_child(Some(&content));
     button.set_tooltip_text(Some(tooltip));
-    (button, l)
+    button.update_property(&[gtk::accessible::Property::Label(title)]);
+    button
+}
+
+/// The icon rail's mark where a group starts: a short bar in its section's colour.
+fn rail_divider(section: &str) -> gtk::Separator {
+    let bar = gtk::Separator::new(gtk::Orientation::Horizontal);
+    bar.add_css_class("nav-divider");
+    bar.add_css_class("compact-show");
+    bar.add_css_class(&format!("section-{section}"));
+    bar.set_visible(false);
+    bar
 }
 
 fn build(app: &gtk::Application) {
@@ -191,61 +211,39 @@ fn build(app: &gtk::Application) {
 
     let sections = sections::all();
 
-    // ----- Sidebar (exact Music / STYLE.md construction) -----
+    // ----- Sidebar: your places first, then the pages under coloured headings -----
     let nav = gtk::Box::new(gtk::Orientation::Vertical, 0);
     nav.add_css_class("settings-navigation");
     nav.set_hexpand(false);
 
-    let list = gtk::Box::new(gtk::Orientation::Vertical, 0);
+    let list = gtk::Box::new(gtk::Orientation::Vertical, 1);
     list.set_hexpand(false);
+    list.append(&rail_divider(nyx_ui::sidebar::ACCENT_SECTION));
+    let places_head = nyx_ui::sidebar::group_label_with_add("Places", true, "Add a place (Ctrl+F)", show_search);
+    nyx_ui::sidebar::set_section(&places_head, nyx_ui::sidebar::ACCENT_SECTION);
+    list.append(&places_head);
+
+    let locations_box = gtk::Box::new(gtk::Orientation::Vertical, 1);
+    locations_box.set_hexpand(false);
+    list.append(&locations_box);
+
     let mut nav_items = HashMap::new();
     let mut last_group = "";
     for s in sections.iter().filter(|s| s.nav) {
         if s.group != last_group {
-            let g = widgets::label(&s.group.to_uppercase(), "nav-group");
-            g.add_css_class("compact-hide");
-            let first = last_group.is_empty();
-            if first {
-                g.add_css_class("first");
-            }
-            // The first group in the app's accent, the others from the theme's
-            // [sections.weather] ("Maps & Radar" is `maps-radar`).
-            let section = if first {
-                nyx_ui::sidebar::ACCENT_SECTION.to_string()
-            } else {
-                s.group.to_lowercase().split_whitespace().filter(|w| *w != "&").collect::<Vec<_>>().join("-")
-            };
-            nyx_ui::sidebar::set_section(&g, &section);
+            let section = sections::group_section(s.group);
+            list.append(&rail_divider(section));
+            let g = nyx_ui::sidebar::group_label(s.group, false);
+            nyx_ui::sidebar::set_section(&g, section);
             list.append(&g);
             last_group = s.group;
         }
-        let (button, label) = nav_button(s.icon, s.title, s.description);
-        label.add_css_class("compact-hide");
+        let button = nav_button(s.icon, s.title, s.description, s.readout);
         let id = s.id;
         button.connect_clicked(move |_| navigate(id));
         list.append(&button);
         nav_items.insert(s.id.to_string(), button);
     }
-
-    // Saved Locations group in the sidebar
-    let loc_group = widgets::label("SAVED LOCATIONS", "nav-group");
-    loc_group.add_css_class("compact-hide");
-    nyx_ui::sidebar::set_section(&loc_group, "saved-locations");
-    list.append(&loc_group);
-
-    let locations_box = gtk::Box::new(gtk::Orientation::Vertical, 0);
-    locations_box.set_hexpand(false);
-    list.append(&locations_box);
-
-    let (add_loc_btn, add_loc_lbl) = nav_button(
-        "list-add-symbolic",
-        "Add location",
-        "Search for a city to add (Ctrl+F)",
-    );
-    add_loc_lbl.add_css_class("compact-hide");
-    add_loc_btn.add_css_class("nav-add");
-    add_loc_btn.connect_clicked(|_| show_search());
-    list.append(&add_loc_btn);
 
     let nav_scroll = gtk::ScrolledWindow::builder()
         .hexpand(false)
@@ -254,8 +252,22 @@ fn build(app: &gtk::Application) {
         .vscrollbar_policy(gtk::PolicyType::External)
         .child(&list)
         .build();
-
     nav.append(&nav_scroll);
+
+    // The foot: where the forecast and the alerts come from, and whether they answered.
+    let foot = widgets::hbox(6);
+    foot.add_css_class("nav-foot");
+    foot.add_css_class("compact-hide");
+    let foot_icon = gtk::Image::from_icon_name("emblem-ok-symbolic");
+    foot_icon.add_css_class("status-icon");
+    foot_icon.add_css_class("ok");
+    foot.append(&foot_icon);
+    let foot_label = widgets::label("", "status-readout");
+    foot_label.set_ellipsize(gtk::pango::EllipsizeMode::End);
+    foot_label.set_hexpand(true);
+    foot_label.set_xalign(0.0);
+    foot.append(&foot_label);
+    nav.append(&foot);
 
     // ----- Content column -----
     let stack = gtk::Stack::new();
@@ -268,7 +280,7 @@ fn build(app: &gtk::Application) {
     stack.set_transition_duration(if p.reduce_motion { 0 } else { 160 });
 
     let search = gtk::SearchEntry::new();
-    search.set_placeholder_text(Some("Search city, state, or postal code  (Ctrl+F)"));
+    search.set_placeholder_text(Some("Search for a place"));
     search.add_css_class("bar-search");
     search.set_width_chars(SEARCH_WIDE);
     search.update_property(&[gtk::accessible::Property::Label("Search or add a location")]);
@@ -302,13 +314,14 @@ fn build(app: &gtk::Application) {
     content.append(&stack);
 
     // ----- Header -----
-    // The app and the active location, the sidebar toggle; the location search in
-    // the middle; when the forecast was updated, refresh, floating and Settings.
+    // The app and the sidebar toggle; the place search in the middle; when the
+    // forecast was updated, refresh and Settings.
     let header = chrome::app_header(&window, "weather-few-clouds-symbolic", "Weather");
     let collapse = widgets::bar_button("sidebar-show-symbolic", "Collapse the sidebar (Ctrl+B)");
     collapse.connect_clicked(|_| toggle_sidebar());
     header.start.append(&collapse);
-    header.center.append(&search);
+    let (search_field, search_hint) = search_with_hint(&search);
+    header.center.append(&search_field);
     header.end.set_spacing(4);
     let status_readout = widgets::label("Loading…", "header-status");
     status_readout.set_ellipsize(gtk::pango::EllipsizeMode::End);
@@ -317,9 +330,6 @@ fn build(app: &gtk::Application) {
     let refresh = widgets::bar_button("view-refresh-symbolic", "Refresh the forecast (Ctrl+R)");
     refresh.connect_clicked(|_| refresh_active(true));
     header.end.append(&refresh);
-    let float = widgets::bar_button("view-restore-symbolic", "Floating or tiled window (Ctrl+M)");
-    float.connect_clicked(|_| toggle_floating_window());
-    header.end.append(&float);
     header.end.append(&chrome::settings_button(settings_dialog::open));
 
     let frame = nyx_ui::frame::AppFrame::new(&header.root);
@@ -340,6 +350,10 @@ fn build(app: &gtk::Application) {
             };
             let narrow = width > 0 && width < 980;
             settings_dialog::fit(w);
+            let small = width > 0 && width < SMALL_WIDTH;
+            if SMALL.with(|s| s.replace(small)) != small && narrow == is_narrow() {
+                rerender_current();
+            }
             if narrow == NARROW.with(|n| n.get()) && nav.has_css_class("sized") {
                 return;
             }
@@ -383,10 +397,12 @@ fn build(app: &gtk::Application) {
         nav,
         nav_items,
         locations_box,
+        foot_icon,
+        foot_label,
         search,
+        search_hint,
         search_results_panel,
         search_results_list,
-        header,
         status_readout,
         overlay,
         sections,
@@ -425,6 +441,28 @@ fn catch_up() {
     }
 }
 
+/// The header's search with "Ctrl F" at its right, shown while it's idle.
+fn search_with_hint(search: &gtk::SearchEntry) -> (gtk::Overlay, gtk::Label) {
+    let overlay = gtk::Overlay::new();
+    overlay.set_child(Some(search));
+    let hint = widgets::label("Ctrl F", "search-key");
+    hint.set_halign(gtk::Align::End);
+    hint.set_valign(gtk::Align::Center);
+    hint.set_can_target(false);
+    overlay.add_overlay(&hint);
+    let update = {
+        let (hint, search) = (hint.clone(), search.clone());
+        move || hint.set_visible(search.text().is_empty() && !search.has_focus() && !is_narrow())
+    };
+    let focus = gtk::EventControllerFocus::new();
+    let (u1, u2) = (update.clone(), update.clone());
+    focus.connect_enter(move |_| u1());
+    focus.connect_leave(move |_| u2());
+    search.add_controller(focus);
+    search.connect_search_changed(move |_| update());
+    (overlay, hint)
+}
+
 /// The location search's width in characters, in a full window and a narrow one.
 const SEARCH_WIDE: i32 = 30;
 const SEARCH_NARROW: i32 = 10;
@@ -438,7 +476,7 @@ fn set_narrow(narrow: bool) {
         let b = u.borrow();
         b.search.set_width_chars(if narrow { SEARCH_NARROW } else { SEARCH_WIDE });
         b.status_readout.set_visible(!narrow);
-        b.header.subtitle.set_visible(!narrow && !b.header.subtitle.text().is_empty());
+        b.search_hint.set_visible(!narrow && b.search.text().is_empty() && !b.search.has_focus());
     }
     // Pages size some parts for the window when they're built (the 7-day bars).
     if changed {
@@ -575,45 +613,55 @@ pub fn rebuild_sidebar_locations() {
     for (idx, loc) in p.saved_locations.iter().enumerate() {
         let button = gtk::Button::new();
         button.add_css_class("nav-item");
-        // The section is the sidebar's selection; the location in use is marked quietly.
+        button.add_css_class("place");
+        // The section is the sidebar's selection; the place in use is a quieter pill.
         if loc.id == active_id {
             button.add_css_class("current");
         }
         let cached = backend::get_cached(&loc.id);
-        let content = gtk::Box::new(gtk::Orientation::Horizontal, 10);
-        let loc_icon = if let Some(c) = &cached {
-            let img = gtk::Image::from_icon_name(c.current.condition.icon_name(c.current.is_day));
-            img.add_css_class(theme::condition_color_class(
-                c.current.condition,
-                c.current.is_day,
-            ));
-            img
-        } else {
-            let img = gtk::Image::from_icon_name("mark-location-symbolic");
-            img.add_css_class("cond-rain");
-            img
+        let content = gtk::Box::new(gtk::Orientation::Horizontal, 12);
+        let temp = cached.as_ref().map(|c| units.temperature.format(c.current.temperature_c));
+        let loc_icon = match &cached {
+            Some(c) => {
+                let img = gtk::Image::from_icon_name(c.current.condition.icon_name(c.current.is_day));
+                img.add_css_class(theme::condition_color_class(c.current.condition, c.current.is_day));
+                img
+            }
+            None => gtk::Image::from_icon_name("mark-location-symbolic"),
         };
+        loc_icon.add_css_class("nav-icon");
         content.append(&loc_icon);
+        // In the icon rail a place is its temperature, so it can't pass for a page.
+        if let Some(t) = &temp {
+            loc_icon.add_css_class("compact-hide");
+            let rail = widgets::label(t, "place-temp");
+            rail.add_css_class("compact-show");
+            rail.set_visible(false);
+            content.append(&rail);
+        }
 
         let name_lbl = widgets::label(&loc.name, "nav-label");
         name_lbl.add_css_class("compact-hide");
         name_lbl.set_hexpand(true);
+        name_lbl.set_xalign(0.0);
         name_lbl.set_ellipsize(gtk::pango::EllipsizeMode::End);
         content.append(&name_lbl);
 
-        if let Some(c) = cached {
-            let badge_txt = units.temperature.format(c.current.temperature_c);
-            let badge = widgets::label(&badge_txt, "nav-loc-badge");
-            badge.add_css_class("compact-hide");
-            content.append(&badge);
+        if let Some(t) = &temp {
+            let readout = widgets::label(t, "nav-readout");
+            readout.add_css_class("compact-hide");
+            content.append(&readout);
         }
 
         button.set_child(Some(&content));
+        let condition = cached.as_ref().map(|c| format!(" · {} {}", temp.clone().unwrap_or_default(), c.current.condition.label()));
         button.set_tooltip_text(Some(&format!(
-            "{} (Alt+{})",
+            "{}{} (Alt+{})",
             loc.display_name(),
+            condition.unwrap_or_default(),
             idx + 1
         )));
+        button.update_property(&[gtk::accessible::Property::Label(&loc.name)]);
         let id = loc.id.clone();
         button.connect_clicked(move |_| select_location(&id));
         let menu_click = gtk::GestureClick::builder().button(gdk::BUTTON_SECONDARY).build();
@@ -884,9 +932,31 @@ pub fn restart_refresh_timer() {
     let mins = prefs::get().refresh_interval_mins.max(5) as u64;
     let id = glib::timeout_add_local(Duration::from_secs(mins * 60), || {
         refresh_active(false);
+        refresh_other_places();
         glib::ControlFlow::Continue
     });
     u.borrow_mut().refresh_source = Some(id);
+}
+
+/// The other saved places' forecasts, fetched when they're missing or stale, so the
+/// sidebar can show each one's temperature.
+fn refresh_other_places() {
+    let p = prefs::get();
+    let active = p.active_location().map(|l| l.id).unwrap_or_default();
+    let others: Vec<Location> = p.saved_locations.iter().filter(|l| l.id != active).cloned().collect();
+    if others.is_empty() {
+        return;
+    }
+    let cfg = p.open_meteo_config();
+    let max_age = (p.refresh_interval_mins.max(5) as i64) * 60;
+    cmd::background(
+        move || {
+            for loc in &others {
+                backend::load_or_fetch(loc, &cfg, max_age, false);
+            }
+        },
+        |_| rebuild_sidebar_locations(),
+    );
 }
 
 pub fn refresh_active(force: bool) {
@@ -952,7 +1022,7 @@ pub fn refresh_active(force: bool) {
 
 pub fn rerender_current() {
     let Some(u) = ui() else { return };
-    let (stack, sec_id, snap, stale, err_str, readout_lbl, subtitle, build_fn) = {
+    let (stack, sec_id, snap, stale, err_str, readout_lbl, foot, build_fn) = {
         let b = u.borrow();
         let sec_id = if b.current_section.is_empty() {
             "overview".to_string()
@@ -972,18 +1042,13 @@ pub fn rerender_current() {
             b.stale_fallback,
             b.last_error.clone(),
             b.status_readout.clone(),
-            b.header.subtitle.clone(),
+            (b.foot_icon.clone(), b.foot_label.clone()),
             build_fn,
         )
     };
     let Some(build_fn) = build_fn else { return };
 
-    // The header: the location after the app's name, and when the forecast is from.
-    if let Some(loc) = prefs::get().active_location() {
-        subtitle.set_text(&loc.name);
-        subtitle.set_visible(!is_narrow());
-        subtitle.set_tooltip_text(Some(&loc.display_name()));
-    }
+    set_foot(&foot.0, &foot.1, snap.as_ref(), err_str.as_deref());
     if let Some(s) = &snap {
         let units = prefs::get().units();
         let age = backend::human_age(s.fetched_at);
@@ -1013,7 +1078,9 @@ pub fn rerender_current() {
     build_fn(&page, snap.as_ref(), stale, err_str.as_deref());
     // The data's licence asks for credit wherever it's shown; this is its place now
     // that there's no status bar.
-    if let Some(s) = &snap {
+    if let Some(s) = &snap
+        && sec_id != "radar"
+    {
         page.body.append(&attribution(&s.attribution));
     }
 
@@ -1036,6 +1103,32 @@ pub fn rerender_current() {
             }
         }
     });
+}
+
+/// The sidebar's foot: "Open-Meteo · NOAA alerts" with a check while both answer, a
+/// warning when either doesn't.
+fn set_foot(icon: &gtk::Image, label: &gtk::Label, snap: Option<&ForecastSnapshot>, error: Option<&str>) {
+    let p = prefs::get();
+    let provider = snap.map_or("Open-Meteo", |s| s.attribution.provider_name.as_str());
+    let noaa = p.us_noaa_alerts && p.active_location().is_some_and(|l| l.is_us());
+    let alerts_down = snap.is_some_and(|s| s.alerts_unavailable);
+    let text = match (error, noaa) {
+        (Some(_), _) => format!("{provider} isn't answering"),
+        (None, true) if alerts_down => "NOAA alerts aren't answering".to_string(),
+        (None, true) => format!("{provider} · NOAA alerts"),
+        (None, false) => provider.to_string(),
+    };
+    let ok = error.is_none() && !(noaa && alerts_down);
+    icon.set_icon_name(Some(if ok { "emblem-ok-symbolic" } else { "dialog-warning-symbolic" }));
+    if ok {
+        icon.remove_css_class("warn");
+        icon.add_css_class("ok");
+    } else {
+        icon.remove_css_class("ok");
+        icon.add_css_class("warn");
+    }
+    label.set_text(&text);
+    label.set_tooltip_text(error.or(Some(&text)));
 }
 
 /// "Weather data by Open-Meteo.com · CC BY 4.0", quiet at the end of a page, the

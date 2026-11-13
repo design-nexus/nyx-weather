@@ -20,6 +20,11 @@ use gtk::{gio, glib};
 
 pub const APP_ID: &str = "io.github.design_nexus.nyx.Weather";
 
+/// The ID this copy runs under (`WEATHER_APP_ID` gives a test copy its own).
+pub fn app_id() -> String {
+    std::env::var("WEATHER_APP_ID").unwrap_or_else(|_| APP_ID.to_string())
+}
+
 const USAGE: &str = "Usage: nyx-weather [OPTIONS]\n\
 \n\
   --toggle            close the window if it's open, otherwise open it\n\
@@ -36,7 +41,7 @@ fn main() -> glib::ExitCode {
         name: "Weather",
     });
 
-    let id = std::env::var("WEATHER_APP_ID").unwrap_or_else(|_| APP_ID.to_string());
+    let id = app_id();
     nyx_core::control::describe_if_asked(&control::description(&id));
     let mut args: Vec<String> = std::env::args().collect();
     if args.iter().any(|a| a == "--help" || a == "-h") {

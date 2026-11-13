@@ -1,0 +1,111 @@
+{
+  "type": "FeatureCollection",
+  "title": "Current watches, warnings, and advisories for 33.1029 N, 86.7536 W",
+  "updated": "2026-11-13T17:40:49+00:00",
+  "features": [
+    {
+      "id": "https://api.weather.gov/alerts/urn:oid:2.49.0.1.840.0.88def42edce7abae34324bf0b56f7c7f77929b75.001.2",
+      "type": "Feature",
+      "properties": {
+        "@id": "https://api.weather.gov/alerts/urn:oid:2.49.0.1.840.0.88def42edce7abae34324bf0b56f7c7f77929b75.001.2",
+        "id": "urn:oid:2.49.0.1.840.0.88def42edce7abae34324bf0b56f7c7f77929b75.001.2",
+        "areaDesc": "Marion; Lamar; Fayette; Winston; Walker; Blount; Etowah; Calhoun; Cherokee; Cleburne; Pickens; Tuscaloosa; Jefferson; Shelby; St. Clair; Talladega; Clay; Randolph; Sumter; Greene; Hale; Perry; Bibb; Chilton; Coosa; Tallapoosa; Chambers; Marengo; Dallas; Autauga; Lowndes; Elmore; Montgomery; Macon; Bullock; Lee; Russell; Pike; Barbour",
+        "sent": "2026-11-13T09:33:00-06:00",
+        "effective": "2026-11-13T09:33:00-06:00",
+        "onset": "2026-11-15T00:00:00-06:00",
+        "expires": "2026-11-14T00:30:00-06:00",
+        "ends": "2026-11-15T08:00:00-06:00",
+        "status": "Actual",
+        "messageType": "Update",
+        "category": "Met",
+        "severity": "Severe",
+        "certainty": "Likely",
+        "urgency": "Expected",
+        "event": "Freeze Warning",
+        "sender": "w-nws.webmaster@noaa.gov",
+        "senderName": "NWS Birmingham AL",
+        "headline": "Freeze Warning issued November 13 at 9:33AM CST until November 15 at 8:00AM CST by NWS Birmingham AL",
+        "description": "* WHAT...For both Freeze Warnings, sub-freezing temperatures as low\nas 28 expected.\n\n* WHERE...All of central Alabama.\n\n* WHEN...For the first Freeze Warning, from midnight tonight to 8 AM\nCST Saturday. For the second Freeze Warning, from midnight Saturday\nNight to 8 AM CST Sunday.\n\n* IMPACTS...Frost and freeze conditions could kill crops, other\nsensitive vegetation and possibly damage unprotected outdoor\nplumbing.",
+        "instruction": "Take steps now to protect tender plants from the cold.\n\nTo prevent water pipes from freezing; wrap or drain or allow them to\ndrip slowly.\n\nDrain in-ground sprinkler systems and cover above ground pipes.",
+        "response": "Execute",
+        "parameters": {
+          "AWIPSidentifier": [
+            "NPWBMX"
+          ],
+          "WMOidentifier": [
+            "WWUS74 KBMX 131533"
+          ],
+          "NWSheadline": [
+            "FREEZE WARNING REMAINS IN EFFECT FROM MIDNIGHT TONIGHT TO 8 AM CST SATURDAY... ...FREEZE WARNING REMAINS IN EFFECT FROM MIDNIGHT SATURDAY NIGHT TO 8 AM CST SUNDAY"
+          ],
+          "VTEC": [
+            "/O.CON.KBMX.FZ.W.0003.261115T0600Z-261115T1400Z/"
+          ],
+          "eventEndingTime": [
+            "2026-11-15T08:00:00-06:00"
+          ]
+        },
+        "references": [
+          {
+            "@id": "https://api.weather.gov/alerts/urn:oid:2.49.0.1.840.0.c11060965b7fe93fc24aaf9ccb3884b2396c86a1.001.3",
+            "identifier": "urn:oid:2.49.0.1.840.0.c11060965b7fe93fc24aaf9ccb3884b2396c86a1.001.3",
+            "sender": "w-nws.webmaster@noaa.gov",
+            "sent": "2026-11-13T01:44:00-06:00"
+          }
+        ]
+      }
+    },
+    {
+      "id": "https://api.weather.gov/alerts/urn:oid:2.49.0.1.840.0.88def42edce7abae34324bf0b56f7c7f77929b75.001.1",
+      "type": "Feature",
+      "properties": {
+        "@id": "https://api.weather.gov/alerts/urn:oid:2.49.0.1.840.0.88def42edce7abae34324bf0b56f7c7f77929b75.001.1",
+        "id": "urn:oid:2.49.0.1.840.0.88def42edce7abae34324bf0b56f7c7f77929b75.001.1",
+        "areaDesc": "Marion; Lamar; Fayette; Winston; Walker; Blount; Etowah; Calhoun; Cherokee; Cleburne; Pickens; Tuscaloosa; Jefferson; Shelby; St. Clair; Talladega; Clay; Randolph; Sumter; Greene; Hale; Perry; Bibb; Chilton; Coosa; Tallapoosa; Chambers; Marengo; Dallas; Autauga; Lowndes; Elmore; Montgomery; Macon; Bullock; Lee; Russell; Pike; Barbour",
+        "sent": "2026-11-13T09:33:00-06:00",
+        "effective": "2026-11-13T09:33:00-06:00",
+        "onset": "2026-11-14T00:00:00-06:00",
+        "expires": "2026-11-14T00:30:00-06:00",
+        "ends": "2026-11-14T08:00:00-06:00",
+        "status": "Actual",
+        "messageType": "Update",
+        "category": "Met",
+        "severity": "Severe",
+        "certainty": "Likely",
+        "urgency": "Expected",
+        "event": "Freeze Warning",
+        "sender": "w-nws.webmaster@noaa.gov",
+        "senderName": "NWS Birmingham AL",
+        "headline": "Freeze Warning issued November 13 at 9:33AM CST until November 14 at 8:00AM CST by NWS Birmingham AL",
+        "description": "* WHAT...For both Freeze Warnings, sub-freezing temperatures as low\nas 28 expected.\n\n* WHERE...All of central Alabama.\n\n* WHEN...For the first Freeze Warning, from midnight tonight to 8 AM\nCST Saturday. For the second Freeze Warning, from midnight Saturday\nNight to 8 AM CST Sunday.\n\n* IMPACTS...Frost and freeze conditions could kill crops, other\nsensitive vegetation and possibly damage unprotected outdoor\nplumbing.",
+        "instruction": "Take steps now to protect tender plants from the cold.\n\nTo prevent water pipes from freezing; wrap or drain or allow them to\ndrip slowly.\n\nDrain in-ground sprinkler systems and cover above ground pipes.",
+        "response": "Execute",
+        "parameters": {
+          "AWIPSidentifier": [
+            "NPWBMX"
+          ],
+          "WMOidentifier": [
+            "WWUS74 KBMX 131533"
+          ],
+          "NWSheadline": [
+            "FREEZE WARNING REMAINS IN EFFECT FROM MIDNIGHT TONIGHT TO 8 AM CST SATURDAY... ...FREEZE WARNING REMAINS IN EFFECT FROM MIDNIGHT SATURDAY NIGHT TO 8 AM CST SUNDAY"
+          ],
+          "VTEC": [
+            "/O.CON.KBMX.FZ.W.0002.261114T0600Z-261114T1400Z/"
+          ],
+          "eventEndingTime": [
+            "2026-11-14T08:00:00-06:00"
+          ]
+        },
+        "references": [
+          {
+            "@id": "https://api.weather.gov/alerts/urn:oid:2.49.0.1.840.0.c11060965b7fe93fc24aaf9ccb3884b2396c86a1.001.2",
+            "identifier": "urn:oid:2.49.0.1.840.0.c11060965b7fe93fc24aaf9ccb3884b2396c86a1.001.2",
+            "sender": "w-nws.webmaster@noaa.gov",
+            "sent": "2026-11-13T01:44:00-06:00"
+          }
+        ]
+      }
+    }
+  ]
+}

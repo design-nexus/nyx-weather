@@ -141,10 +141,14 @@ struct Ctx {
     loc: Location,
     cfg: OpenMeteoConfig,
     utc_offset: i64,
+    play_bar: gtk::Box,
+    play_btn: gtk::Button,
     frame_slider: gtk::Scale,
     frame_time_lbl: gtk::Label,
-    desc_lbl: gtk::Label,
-    zoom_lbl: gtk::Label,
+    opacity: gtk::Box,
+    sub_lbl: gtk::Label,
+    /// The frames the timeline's marks were made for: how many, and the first's time.
+    marked: Cell<(usize, i64)>,
     /// Set while the slider is moved by playback, not the user.
     syncing: Cell<bool>,
     resize_timer: RefCell<Option<glib::SourceId>>,
@@ -172,7 +176,6 @@ impl Ctx {
             st.zoom = z;
         }
         ZOOM.with(|c| c.set(z));
-        self.zoom_lbl.set_text(&format!("Z{z}"));
         self.load_scene();
     }
 
@@ -200,6 +203,17 @@ impl Ctx {
             RadarLayerKind::PrecipitationRadar => "© OpenStreetMap contributors · Radar: RainViewer",
             RadarLayerKind::InfraredSatellite => "© OpenStreetMap contributors · Satellite: NOAA GOES via IEM",
             _ => "© OpenStreetMap contributors · Data: Open-Meteo",
+        }
+    }
+
+    /// What the layer shows, short, after the place in the page bar.
+    fn summary(&self, layer: RadarLayerKind) -> &'static str {
+        match layer {
+            RadarLayerKind::PrecipitationRadar if self.loc.is_us() => "a frame every 5 minutes",
+            RadarLayerKind::PrecipitationRadar => "a frame every 10 minutes",
+            RadarLayerKind::InfraredSatellite => "the latest infrared image",
+            RadarLayerKind::WindStreamlines => "the wind now",
+            _ => "the temperature and pressure now",
         }
     }
 
@@ -264,7 +278,8 @@ impl Ctx {
             };
             (key, st.generation, keep_basemap, st.layer, st.zoom)
         };
-        self.desc_lbl.set_text(self.description(layer));
+        self.sub_lbl.set_text(&format!("{} · {}", self.loc.name, self.summary(layer)));
+        self.sub_lbl.set_tooltip_text(Some(self.description(layer)));
         self.update_timeline();
         self.canvas.queue_draw();
 
@@ -405,7 +420,29 @@ impl Ctx {
         let st = self.state.borrow();
         let n = st.frames.len();
         let tile = is_tile_layer(st.layer);
+        // Only radar has frames to play; satellite keeps the time of its one image, and
+        // the fields leave just the opacity.
+        let plays = st.layer == RadarLayerKind::PrecipitationRadar;
+        self.play_btn.set_visible(plays);
+        self.frame_slider.set_visible(plays);
+        self.frame_time_lbl.set_visible(tile);
+        self.play_bar.set_halign(if plays { gtk::Align::Fill } else { gtk::Align::End });
+        if plays {
+            self.play_bar.remove_css_class("no-timeline");
+        } else {
+            self.play_bar.add_css_class("no-timeline");
+        }
+        if tile {
+            self.opacity.remove_css_class("alone");
+        } else {
+            self.opacity.add_css_class("alone");
+        }
         self.syncing.set(true);
+        let first = st.frames.first().map_or(0, |f| f.time);
+        if self.marked.get() != (n, first) {
+            self.marked.set((n, first));
+            self.mark_frames(&st.frames);
+        }
         if tile && n > 1 {
             self.frame_slider.set_range(0.0, (n - 1) as f64);
             self.frame_slider.set_value(st.pos);
@@ -430,6 +467,33 @@ impl Ctx {
         };
         if self.frame_time_lbl.text() != text {
             self.frame_time_lbl.set_text(&text);
+        }
+    }
+
+    /// A tick under each frame, and the time under about every fourth (not the first,
+    /// whose label would run off the timeline's start), the newest marked "now".
+    fn mark_frames(&self, frames: &[RadarFrame]) {
+        let s = &self.frame_slider;
+        s.clear_marks();
+        let n = frames.len();
+        if n < 2 {
+            return;
+        }
+        let every = n.div_ceil(5).max(1);
+        let use_24h = prefs::get().use_24h_time;
+        for (i, f) in frames.iter().enumerate() {
+            let last = i + 1 == n;
+            let labelled = last || (i > 0 && i % every == 0 && n - 1 - i > every / 2);
+            let text = labelled.then(|| {
+                let local = nyx_weather_core::local_time(f.time, self.utc_offset as i32);
+                let t = local.format(if use_24h { "%H:%M" } else { "%-I:%M %p" }).to_string();
+                if last {
+                    format!("<span foreground=\"{}\" weight=\"600\">{t} · now</span>", theme::palette().accent)
+                } else {
+                    t
+                }
+            });
+            s.add_mark(i as f64, gtk::PositionType::Bottom, text.as_deref());
         }
     }
 
@@ -503,31 +567,26 @@ pub fn build(
         ..Default::default()
     }));
 
-    // The page doesn't scroll: the map takes the height the window has left after
-    // its controls, so the map, the toolbar and the timeline are always in view.
+    // The page doesn't scroll: the map takes the height the window has left under
+    // the page bar, with the zoom and the timeline floating over it.
     page.root.set_vscrollbar_policy(gtk::PolicyType::Never);
     page.body.set_vexpand(true);
 
-    // 1. Layer & Map Controls Card
-    let g_map = page.group("Weather radar & spatial overlays");
-    g_map.wrapper.set_vexpand(true);
-    g_map.list.set_vexpand(true);
-    let desc_lbl = widgets::label(state.borrow().layer.description(), "group-note");
-    desc_lbl.set_wrap(true);
-    g_map
-        .wrapper
-        .insert_child_after(&desc_lbl, g_map.wrapper.first_child().as_ref());
-
-    let toolbar = widgets::hbox(8);
-    toolbar.add_css_class("radar-toolbar");
-
-    // Layer switcher segmented control
+    // 1. The page bar: the page, the place and what the layer shows; the layers.
+    let bar = widgets::hbox(10);
+    bar.add_css_class("radar-bar");
+    bar.append(&widgets::label("Radar", "page-title"));
+    let sub_lbl = widgets::label("", "page-sub");
+    sub_lbl.set_ellipsize(gtk::pango::EllipsizeMode::End);
+    sub_lbl.set_hexpand(true);
+    sub_lbl.set_xalign(0.0);
+    bar.append(&sub_lbl);
     let layer_seg = widgets::segmented(
         &widgets::opts(&[
             ("radar", "Radar"),
             ("satellite", "Satellite"),
             ("wind", "Wind"),
-            ("temp", "Temp"),
+            ("temp", "Temperature"),
         ]),
         state.borrow().layer.id(),
         {
@@ -539,69 +598,84 @@ pub fn build(
             }
         },
     );
-    toolbar.append(&layer_seg);
+    bar.append(&layer_seg);
 
-    let spacer = gtk::Box::new(gtk::Orientation::Horizontal, 0);
-    spacer.set_hexpand(true);
-    toolbar.append(&spacer);
-
-    // Zoom controls, on the map's top-right corner so the toolbar fits a 460 px window.
-    let zoom_out = widgets::icon_button("zoom-out-symbolic", "Zoom out (Ctrl+scroll, or pinch)");
-    let zoom_lbl = widgets::label(&format!("Z{}", state.borrow().zoom), "tnum");
-    let zoom_in = widgets::icon_button("zoom-in-symbolic", "Zoom in (Ctrl+scroll, double-click, or pinch)");
-    let map_zoom = widgets::vbox(0);
-    map_zoom.add_css_class("map-zoom");
-    map_zoom.set_halign(gtk::Align::End);
-    map_zoom.set_valign(gtk::Align::Start);
-    map_zoom.append(&zoom_in);
-    map_zoom.append(&zoom_lbl);
-    map_zoom.append(&zoom_out);
-
-    // Overlay opacity and the details about the place, behind one button so the
-    // map keeps the room.
+    // The place's coordinates, wind and rain, behind one button so the map keeps the room.
     let details = widgets::vbox(4);
     details.add_css_class("radar-details");
     let details_btn = gtk::MenuButton::new();
     details_btn.set_icon_name("view-more-symbolic");
-    details_btn.set_tooltip_text(Some("Overlay opacity and map details"));
+    details_btn.set_tooltip_text(Some("Map details"));
     details_btn.add_css_class("flat");
     details_btn.set_valign(gtk::Align::Center);
     let details_pop = gtk::Popover::new();
     details_pop.set_child(Some(&details));
     details_btn.set_popover(Some(&details_pop));
-    toolbar.append(&details_btn);
-    g_map.add(&toolbar);
+    bar.append(&details_btn);
+    page.body.append(&bar);
 
-    // 2. The map: fills the card's width and the height left over.
+    // 2. The map, filling the rest.
     let canvas = gtk::DrawingArea::new();
     canvas.set_content_height(MAP_MIN_HEIGHT);
     canvas.set_hexpand(true);
     canvas.set_vexpand(true);
     canvas.add_css_class("radar-canvas");
-
     let map = gtk::Overlay::new();
+    map.set_vexpand(true);
     map.set_child(Some(&canvas));
+    page.body.append(&map);
+
+    // Zoom in, out, and back to the place, on the map's top-right corner.
+    let zoom_in = widgets::icon_button("list-add-symbolic", "Zoom in (Ctrl+scroll, double-click, or pinch)");
+    let zoom_out = widgets::icon_button("list-remove-symbolic", "Zoom out (Ctrl+scroll, or pinch)");
+    let zoom_home = widgets::icon_button("find-location-symbolic", &format!("Back to {}", loc.name));
+    let map_zoom = widgets::vbox(2);
+    map_zoom.add_css_class("map-zoom");
+    map_zoom.set_halign(gtk::Align::End);
+    map_zoom.set_valign(gtk::Align::Start);
+    map_zoom.append(&zoom_in);
+    map_zoom.append(&zoom_out);
+    map_zoom.append(&zoom_home);
     map.add_overlay(&map_zoom);
-    g_map.add(&map);
 
-    // 3. Timeline Scrubber
-    let timeline_row = widgets::hbox(10);
-    timeline_row.add_css_class("radar-timeline-row");
-
+    // 3. Play, the timeline and the overlay's opacity, floating at the map's foot.
+    let play_bar = widgets::hbox(14);
+    play_bar.add_css_class("radar-play");
+    play_bar.set_valign(gtk::Align::End);
     let play_btn = widgets::icon_button("media-playback-start-symbolic", "Play the radar loop");
-    timeline_row.append(&play_btn);
+    play_btn.add_css_class("radar-play-btn");
+    play_btn.set_valign(gtk::Align::Center);
+    play_bar.append(&play_btn);
 
     let frame_slider = gtk::Scale::with_range(gtk::Orientation::Horizontal, 0.0, 12.0, 1.0);
+    frame_slider.add_css_class("radar-timeline");
     frame_slider.set_draw_value(false);
     frame_slider.set_hexpand(true);
-    timeline_row.append(&frame_slider);
+    frame_slider.set_valign(gtk::Align::Center);
+    frame_slider.set_margin_end(24);
+    play_bar.append(&frame_slider);
 
-    let frame_time_lbl = widgets::label("Live", "tnum");
-    frame_time_lbl.set_width_chars(18);
-    frame_time_lbl.set_xalign(1.0);
-    timeline_row.append(&frame_time_lbl);
+    let frame_time_lbl = widgets::label("Live", "radar-frame-time");
+    frame_time_lbl.set_valign(gtk::Align::Center);
+    play_bar.append(&frame_time_lbl);
 
-    g_map.add(&timeline_row);
+    let opacity = widgets::hbox(8);
+    opacity.add_css_class("radar-opacity");
+    opacity.set_valign(gtk::Align::Center);
+    opacity.append(&widgets::label("Opacity", ""));
+    let initial = (state.borrow().opacity * 100.0).round();
+    let opacity_scale = gtk::Scale::with_range(gtk::Orientation::Horizontal, 35.0, 100.0, 5.0);
+    opacity_scale.set_draw_value(false);
+    opacity_scale.set_width_request(90);
+    opacity_scale.set_value(initial);
+    opacity_scale.set_tooltip_text(Some("How strongly the layer shows over the map"));
+    opacity.append(&opacity_scale);
+    let pct = widgets::label(&format!("{initial:.0}%"), "tnum");
+    pct.set_width_chars(4);
+    pct.set_xalign(1.0);
+    opacity.append(&pct);
+    play_bar.append(&opacity);
+    map.add_overlay(&play_bar);
 
     let ctx = Rc::new(Ctx {
         state: state.clone(),
@@ -609,40 +683,35 @@ pub fn build(
         loc: loc.clone(),
         cfg: p.open_meteo_config(),
         utc_offset,
+        play_bar: play_bar.clone(),
+        play_btn: play_btn.clone(),
         frame_slider: frame_slider.clone(),
         frame_time_lbl: frame_time_lbl.clone(),
-        desc_lbl: desc_lbl.clone(),
-        zoom_lbl: zoom_lbl.clone(),
+        opacity: opacity.clone(),
+        sub_lbl: sub_lbl.clone(),
+        marked: Cell::new((usize::MAX, 0)),
         syncing: Cell::new(false),
         resize_timer: RefCell::new(None),
     });
 
-    // Opacity row
-    let (opacity_row, _) = widgets::slider_row(
-        "Overlay opacity",
-        "Blend between the cartographic basemap and the active meteorological layer.",
-        (35.0, 100.0, 5.0),
-        (state.borrow().opacity * 100.0).round(),
-        0,
-        "%",
-        {
-            let state = state.clone();
-            let canvas = canvas.clone();
-            move |v| {
-                let pct = v.round().clamp(35.0, 100.0) as u8;
-                prefs::update(|pr| pr.radar_opacity_pct = pct);
-                state.borrow_mut().opacity = (pct as f64) / 100.0;
-                canvas.queue_draw();
-            }
-        },
-    );
-    details.append(&opacity_row);
+    {
+        let state = state.clone();
+        let canvas = canvas.clone();
+        opacity_scale.connect_value_changed(move |s| {
+            let v = s.value().round().clamp(35.0, 100.0);
+            pct.set_text(&format!("{v:.0}%"));
+            prefs::update(|pr| pr.radar_opacity_pct = v as u8);
+            state.borrow_mut().opacity = v / 100.0;
+            canvas.queue_draw();
+        });
+    }
 
     // Drawing: the composed pictures, the frame fade and what goes over them.
     {
         let state = state.clone();
         let snap_owned = snap.cloned();
         let c = ctx.clone();
+        let play_bar = play_bar.clone();
         canvas.set_draw_func(move |_, cr, w, h| {
             let st = state.borrow();
             let reduce = prefs::get().reduce_motion;
@@ -661,6 +730,9 @@ pub fn build(
                 anim_phase: st.anim_phase,
                 notice: st.notice.as_deref(),
                 credit: c.credit(st.layer),
+                inset_bottom: play_bar
+                    .compute_bounds(&c.canvas)
+                    .map_or((play_bar.height() + PLAY_BAR_MARGIN) as f64, |b| h as f64 - b.y() as f64 + CREDIT_GAP),
             };
             charts::draw_radar_map(cr, w as f64, h as f64, &scene);
         });
@@ -675,6 +747,7 @@ pub fn build(
                 st.scene = None;
                 st.basemap = None;
             }
+            c.marked.set((usize::MAX, 0));
             c.load_scene();
         });
     }
@@ -727,6 +800,8 @@ pub fn build(
         zoom_out.connect_clicked(move |_| c.zoom_by(-1));
         let c = ctx.clone();
         zoom_in.connect_clicked(move |_| c.zoom_by(1));
+        let c = ctx.clone();
+        zoom_home.connect_clicked(move |_| c.set_zoom(6));
     }
 
     // Wire touchpad / touchscreen pinch-to-zoom (gtk::GestureZoom)
@@ -872,7 +947,7 @@ pub fn build(
 
     // 4. Regional telemetry, in the details popover
     if let Some(s) = snap {
-        details.append(&widgets::label("REGIONAL TELEMETRY", "group-title"));
+        details.append(&widgets::label(&s.location.name, "reading-details-title"));
         let coords = format!("{:.4}°, {:.4}°", s.location.latitude, s.location.longitude);
         details.append(&widgets::row(
             "Target coordinates",
@@ -909,6 +984,12 @@ pub fn build(
 
 /// The map's smallest height; past this the window, not the map, stops shrinking.
 const MAP_MIN_HEIGHT: i32 = 200;
+
+/// The space between the floating play bar and the map's edges (style.css's `.radar-play`).
+const PLAY_BAR_MARGIN: i32 = 14;
+
+/// The space between the play bar's top and the credits drawn over the map above it.
+const CREDIT_GAP: f64 = 6.0;
 
 fn set_play_icon(b: &gtk::Button, playing: bool) {
     b.set_icon_name(if playing { "media-playback-pause-symbolic" } else { "media-playback-start-symbolic" });

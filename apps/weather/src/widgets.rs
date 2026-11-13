@@ -42,28 +42,19 @@ impl Page {
         list.add_css_class("group-list");
         wrapper.append(&list);
         self.body.append(&wrapper);
-        Group {
-            wrapper,
-            head,
-            list,
-        }
+        Group { wrapper, list }
     }
 }
 
 #[derive(Clone)]
 pub struct Group {
     pub wrapper: gtk::Box,
-    pub head: gtk::Box,
     pub list: gtk::Box,
 }
 
 impl Group {
     pub fn add(&self, w: &impl IsA<gtk::Widget>) {
         self.list.append(w);
-    }
-
-    pub fn header_end(&self, w: &impl IsA<gtk::Widget>) {
-        self.head.append(w);
     }
 
     pub fn note(&self, text: &str) {

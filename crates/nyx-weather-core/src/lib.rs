@@ -1,6 +1,7 @@
 //! Provider-independent weather models, unit conversions, provider adapters,
 //! natural query evaluation, and SQLite caching for Weather.
 
+pub mod alerts;
 pub mod cache;
 pub mod field;
 pub mod model;
@@ -11,6 +12,7 @@ pub mod query;
 pub mod radar;
 pub mod reflectivity;
 
+pub use alerts::merge_alerts;
 pub use cache::Cache;
 pub use field::{Bounds, FIELD_SIZE, FieldGrid, FieldPoint};
 pub use model::*;

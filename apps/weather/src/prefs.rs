@@ -180,6 +180,10 @@ pub fn write_hypr_rule(float: bool) -> bool {
 /// Ensure `~/.config/hypr/nyx.lua` matches `float` before the window maps on startup.
 /// If the rule file changed, reloads Hyprland synchronously so the new window maps with the right rule.
 pub fn sync_hypr_rule_on_startup(float: bool) {
+    // The rule is for the real app ID; a test copy leaves Hyprland's config alone.
+    if crate::app_id() != crate::APP_ID {
+        return;
+    }
     if write_hypr_rule(float) {
         let _ = std::process::Command::new("hyprctl").arg("reload").output();
     }
@@ -198,7 +202,7 @@ pub fn ensure_live_window_state(float: bool) {
     if let Some(arr) = clients_out.as_ref().and_then(|v| v.as_array()) {
         for c in arr {
             let class = c.get("class").and_then(|v| v.as_str()).unwrap_or("");
-            if class != "io.github.design_nexus.nyx.Weather" {
+            if class != crate::app_id() {
                 continue;
             }
             let Some(addr) = c.get("address").and_then(|v| v.as_str()) else {
@@ -254,7 +258,7 @@ pub fn ensure_live_window_state(float: bool) {
 
 /// Apply the floating-window preference to `~/.config/hypr/nyx.lua` and the live Hyprland session.
 pub fn apply_floating_window(float: bool) {
-    let rule_changed = write_hypr_rule(float);
+    let rule_changed = crate::app_id() == crate::APP_ID && write_hypr_rule(float);
 
     std::thread::spawn(move || {
         if rule_changed {

@@ -8,7 +8,6 @@ use gtk::prelude::*;
 use gtk::cairo;
 use nyx_weather_core::{
     Echo, FieldGrid, ForecastSnapshot, MoonPhaseInfo, RadarLayerKind, UnitPrefs,
-    cardinal_direction,
 };
 use nyx_weather_core::reflectivity::nws_color;
 use std::f64::consts::PI;
@@ -592,6 +591,8 @@ pub struct MapScene<'a> {
     pub notice: Option<&'a str>,
     /// The data credits the services ask for.
     pub credit: &'a str,
+    /// How much of the map's foot the controls over it cover.
+    pub inset_bottom: f64,
 }
 
 /// Paint `s` (composed for a canvas of its own size) centred on a `w × h` canvas.
@@ -612,7 +613,6 @@ pub fn draw_radar_map(cr: &cairo::Context, w: f64, h: f64, scene: &MapScene) {
     let surface = Rgb::hex(&p.surface);
     let text = Rgb::hex(&p.text);
     let dim = Rgb::hex(&p.dim_text);
-    let accent = Rgb::hex(&p.accent);
     let layer = scene.layer;
 
     // Base background
@@ -670,7 +670,7 @@ pub fn draw_radar_map(cr: &cairo::Context, w: f64, h: f64, scene: &MapScene) {
         }
     }
     if layer == RadarLayerKind::PrecipitationRadar {
-        reflectivity_legend(cr, h);
+        reflectivity_legend(cr);
     }
     // 3. Center location target crosshair & live badge
     set_rgb(cr, wc.sun, 0.30);
@@ -684,65 +684,20 @@ pub fn draw_radar_map(cr: &cairo::Context, w: f64, h: f64, scene: &MapScene) {
     cr.arc(cx, cy, 5.2, 0.0, 2.0 * PI);
     let _ = cr.stroke();
 
-    // HUD overlay pill in top-left corner
-    let units = scene.units;
+    // The place's name beside its mark.
     if let Some(s) = scene.snap {
-        let hud_text = match layer {
-            RadarLayerKind::PrecipitationRadar => format!(
-                "{} · Precip {}% · {}",
-                s.location.name,
-                s.hourly
-                    .first()
-                    .map(|h| h.precipitation_probability_pct)
-                    .unwrap_or(0),
-                units.precipitation.format(s.current.precipitation_mm)
-            ),
-            RadarLayerKind::InfraredSatellite => format!(
-                "{} · Cloud Cover {}% · Vis {}",
-                s.location.name,
-                s.current.cloud_cover_pct,
-                s.current
-                    .visibility_m
-                    .map(|v| units.distance.format_m(v))
-                    .unwrap_or_else(|| "–".into())
-            ),
-            RadarLayerKind::WindStreamlines => format!(
-                "{} · Wind {} {} ({})",
-                s.location.name,
-                units.wind_speed.format(s.current.wind_speed_kmh),
-                cardinal_direction(s.current.wind_direction_deg),
-                s.current
-                    .wind_gusts_kmh
-                    .map(|g| format!("Gusts {}", units.wind_speed.format(g)))
-                    .unwrap_or_else(|| "Steady".into())
-            ),
-            RadarLayerKind::TemperatureContour => format!(
-                "{} · {} (Feels {}) · {}",
-                s.location.name,
-                units.temperature.format_with_unit(s.current.temperature_c),
-                units
-                    .temperature
-                    .format_with_unit(s.current.apparent_temperature_c),
-                s.current
-                    .pressure_hpa
-                    .map(|p| units.pressure.format(p))
-                    .unwrap_or_else(|| "–".into())
-            ),
-        };
-
         cr.select_font_face(&ui_font(), cairo::FontSlant::Normal, cairo::FontWeight::Bold);
-        cr.set_font_size(11.0);
-        let tw = cr.text_extents(&hud_text).map(|e| e.x_advance()).unwrap_or(hud_text.len() as f64 * 6.8);
-        set_rgb(cr, bg, 0.84);
-        cr.rectangle(12.0, 12.0, tw + 20.0, 28.0);
-        let _ = cr.fill();
-        set_rgb(cr, accent, 0.45);
-        cr.set_line_width(1.0);
-        cr.rectangle(12.0, 12.0, tw + 20.0, 28.0);
+        cr.set_font_size(12.0);
+        let (x, y) = (cx + 18.0, cy + 4.5);
+        set_rgb(cr, bg, 0.75);
+        cr.set_line_width(3.5);
+        cr.set_line_join(cairo::LineJoin::Round);
+        cr.move_to(x, y);
+        cr.text_path(&s.location.name);
         let _ = cr.stroke();
-        set_rgb(cr, text, 0.96);
-        cr.move_to(22.0, 30.0);
-        let _ = cr.show_text(&hud_text);
+        set_rgb(cr, text, 1.0);
+        cr.move_to(x, y);
+        let _ = cr.show_text(&s.location.name);
     }
 
     // A note when the layer has nothing to show here (no radar coverage, field loading).
@@ -750,7 +705,7 @@ pub fn draw_radar_map(cr: &cairo::Context, w: f64, h: f64, scene: &MapScene) {
         cr.select_font_face(&ui_font(), cairo::FontSlant::Normal, cairo::FontWeight::Normal);
         cr.set_font_size(11.0);
         let tw = cr.text_extents(n).map(|e| e.x_advance()).unwrap_or(0.0);
-        let (bx, by) = ((cx - tw / 2.0 - 10.0).max(8.0), h - 72.0);
+        let (bx, by) = ((cx - tw / 2.0 - 10.0).max(8.0), h - scene.inset_bottom - 36.0);
         set_rgb(cr, bg, 0.88);
         cr.rectangle(bx, by, tw + 20.0, 26.0);
         let _ = cr.fill();
@@ -764,11 +719,12 @@ pub fn draw_radar_map(cr: &cairo::Context, w: f64, h: f64, scene: &MapScene) {
     cr.select_font_face(&ui_font(), cairo::FontSlant::Normal, cairo::FontWeight::Normal);
     cr.set_font_size(9.5);
     let tw = cr.text_extents(credit).map(|e| e.x_advance()).unwrap_or(0.0);
+    let foot = h - scene.inset_bottom;
     set_rgb(cr, bg, 0.78);
-    cr.rectangle(w - tw - 14.0, h - 18.0, tw + 14.0, 18.0);
+    cr.rectangle(w - tw - 28.0, foot - 18.0, tw + 14.0, 18.0);
     let _ = cr.fill();
     set_rgb(cr, dim, 1.0);
-    cr.move_to(w - tw - 7.0, h - 5.5);
+    cr.move_to(w - tw - 21.0, foot - 5.5);
     let _ = cr.show_text(credit);
 }
 
@@ -891,10 +847,8 @@ fn legend(cr: &cairo::Context, label: &str, col: Rgb) {
     cr.select_font_face(&ui_font(), cairo::FontSlant::Normal, cairo::FontWeight::Normal);
     cr.set_font_size(10.5);
     let tw = cr.text_extents(label).map(|e| e.x_advance()).unwrap_or(0.0);
-    let (x, y) = (12.0, cr.clip_extents().map(|e| e.3).unwrap_or(400.0) - 46.0);
-    set_rgb(cr, Rgb::hex(&p.bg), 0.84);
-    cr.rectangle(x, y, tw + 30.0, 22.0);
-    let _ = cr.fill();
+    let (x, y) = (14.0, 14.0);
+    key_pill(cr, &p, x, y, tw + 30.0);
     set_rgb(cr, col, 1.0);
     cr.arc(x + 11.0, y + 11.0, 4.0, 0.0, 2.0 * PI);
     let _ = cr.fill();
@@ -903,8 +857,21 @@ fn legend(cr: &cairo::Context, label: &str, col: Rgb) {
     let _ = cr.show_text(label);
 }
 
-/// The radar key in the map's bottom-left corner: the NWS scale from light to heavy.
-fn reflectivity_legend(cr: &cairo::Context, h: f64) {
+/// A key's background on the map: a rounded pill in the popover colour.
+fn key_pill(cr: &cairo::Context, p: &theme::Palette, x: f64, y: f64, w: f64) {
+    let r = 6.0;
+    cr.new_sub_path();
+    cr.arc(x + w - r, y + r, r, -PI / 2.0, 0.0);
+    cr.arc(x + w - r, y + 22.0 - r, r, 0.0, PI / 2.0);
+    cr.arc(x + r, y + 22.0 - r, r, PI / 2.0, PI);
+    cr.arc(x + r, y + r, r, PI, 1.5 * PI);
+    cr.close_path();
+    set_rgb(cr, Rgb::hex(&p.bg), 0.9);
+    let _ = cr.fill();
+}
+
+/// The radar key in the map's top-left corner: the NWS scale from light to heavy.
+fn reflectivity_legend(cr: &cairo::Context) {
     let p = theme::palette();
     cr.select_font_face(&ui_font(), cairo::FontSlant::Normal, cairo::FontWeight::Normal);
     cr.set_font_size(10.5);
@@ -912,10 +879,8 @@ fn reflectivity_legend(cr: &cairo::Context, h: f64) {
     let lw = cr.text_extents(light).map(|e| e.x_advance()).unwrap_or(0.0);
     let hw = cr.text_extents(heavy).map(|e| e.x_advance()).unwrap_or(0.0);
     let bar = 120.0;
-    let (x, y) = (12.0, h - 46.0);
-    set_rgb(cr, Rgb::hex(&p.bg), 0.84);
-    cr.rectangle(x, y, lw + bar + hw + 36.0, 22.0);
-    let _ = cr.fill();
+    let (x, y) = (14.0, 14.0);
+    key_pill(cr, &p, x, y, lw + bar + hw + 36.0);
     set_rgb(cr, Rgb::hex(&p.text), 0.95);
     cr.move_to(x + 10.0, y + 15.0);
     let _ = cr.show_text(light);

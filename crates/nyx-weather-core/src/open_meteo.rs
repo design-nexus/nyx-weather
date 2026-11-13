@@ -937,19 +937,18 @@ mod tests {
     #[test]
     fn drops_expired_alerts() {
         let mut snap = fixture();
-        let alert = |expires: Option<&str>| crate::model::WeatherAlert {
-            id: "a".into(),
-            event: "Wind Advisory".into(),
-            headline: String::new(),
-            description: String::new(),
-            instruction: None,
+        let alert = |event: &str, expires: Option<&str>| crate::model::WeatherAlert {
+            id: event.into(),
+            event: event.into(),
             severity: crate::model::AlertSeverity::Moderate,
-            area: String::new(),
-            effective: None,
             expires: expires.map(str::to_string),
-            sender: None,
+            ..Default::default()
         };
-        snap.alerts = vec![alert(Some("2026-10-18T14:00:00-05:00")), alert(Some("2026-10-18T18:00:00-05:00")), alert(None)];
+        snap.alerts = vec![
+            alert("Wind Advisory", Some("2026-10-18T14:00:00-05:00")),
+            alert("Frost Advisory", Some("2026-10-18T18:00:00-05:00")),
+            alert("Special Weather Statement", None),
+        ];
         snap.advance_to(local("2026-10-18T15:00"));
         assert_eq!(snap.alerts.len(), 2);
     }

@@ -162,6 +162,12 @@ fn extra_colors(p: &Palette) -> String {
     )
 }
 
+/// A swatch from the active theme (`"amber"`, `"blue"`), for drawings that follow the
+/// sidebar's section colours rather than the weather palette.
+pub fn swatch(name: &str) -> Option<Rgb> {
+    nyx_theme::look().swatches.iter().find(|(n, _)| n == name).map(|(_, c)| Rgb::hex(c))
+}
+
 /// Semantic CSS class for coloring a weather condition icon with the active theme palette.
 pub fn condition_color_class(cond: WeatherCondition, is_day: bool) -> &'static str {
     match cond {
@@ -202,8 +208,53 @@ pub fn condition_color_class(cond: WeatherCondition, is_day: bool) -> &'static s
     }
 }
 
+/// Icons the app brings (the icon theme has no radar, leaf, drop, gauge, umbrella or
+/// line chart), written once to its cache and added to the icon theme. GTK fills every
+/// path of a symbolic icon, so lines are drawn as filled outlines.
+const ICONS: &[(&str, &str)] = &[
+    (
+        "nyx-weather-radar-symbolic",
+        r##"<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="#000"><path fill-rule="evenodd" d="M2.2 12a9.8 9.8 0 1 1 19.6 0a9.8 9.8 0 1 1 -19.6 0zM3.8 12a8.2 8.2 0 1 0 16.4 0a8.2 8.2 0 1 0 -16.4 0z"/><path fill-rule="evenodd" d="M6.2 12a5.8 5.8 0 1 1 11.6 0a5.8 5.8 0 1 1 -11.6 0zM7.8 12a4.2 4.2 0 1 0 8.4 0a4.2 4.2 0 1 0 -8.4 0z"/><path d="M10.4 12a1.6 1.6 0 1 1 3.2 0a1.6 1.6 0 1 1 -3.2 0z"/><path d="M11.43 11.43L17.83 5.03L18.97 6.17L12.57 12.57z"/></svg>"##,
+    ),
+    (
+        "nyx-weather-leaf-symbolic",
+        r##"<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="#000"><path fill-rule="evenodd" d="M4.4 19.6C4.4 9.8 9.6 3.6 20.4 3.6C20.4 14.4 14.2 19.6 4.4 19.6zM6.05 17.95C6.5 10.7 10.5 5.75 18.75 5.25C18.25 13.5 13.3 17.5 6.05 17.95z"/><path d="M3.43 19.43L13.43 9.43L14.57 10.57L4.57 20.57z"/></svg>"##,
+    ),
+    (
+        "nyx-weather-drop-symbolic",
+        r##"<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="#000"><path fill-rule="evenodd" d="M12 2.4C12 2.4 5.2 9.4 5.2 14.4a6.8 6.8 0 0 0 13.6 0C18.8 9.4 12 2.4 12 2.4zM12 4.75C10.1 6.9 6.8 11.3 6.8 14.4a5.2 5.2 0 0 0 10.4 0C17.2 11.3 13.9 6.9 12 4.75z"/></svg>"##,
+    ),
+    (
+        "nyx-weather-gauge-symbolic",
+        r##"<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="#000"><path d="M4.21 17.5A9 9 0 1 1 19.79 17.5L18.41 16.7A7.4 7.4 0 1 0 5.59 16.7z"/><path d="M11.37 13.01L15.37 8.01L16.63 9.01L12.63 14.01z"/><path d="M10.4 13.5a1.6 1.6 0 1 1 3.2 0a1.6 1.6 0 1 1 -3.2 0z"/></svg>"##,
+    ),
+    (
+        "nyx-weather-umbrella-symbolic",
+        r##"<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="#000"><path d="M3 12a9 9 0 0 1 18 0z"/><path d="M11.2 12h1.6v6.5a2.6 2.6 0 0 1 -5.2 0h1.6a1 1 0 0 0 2 0z"/></svg>"##,
+    ),
+    (
+        "nyx-weather-graph-symbolic",
+        r##"<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="#000"><path d="M3.63 17.57L9.13 11.57L7.87 10.43L2.37 16.43z"/><path d="M7.98 11.67L12.48 15.17L13.52 13.83L9.02 10.33z"/><path d="M13.62 15.08L21.62 6.58L20.38 5.42L12.38 13.92z"/><path d="M2.15 17a0.85 0.85 0 1 0 1.7 0a0.85 0.85 0 1 0 -1.7 0z"/><path d="M7.65 11a0.85 0.85 0 1 0 1.7 0a0.85 0.85 0 1 0 -1.7 0z"/><path d="M12.15 14.5a0.85 0.85 0 1 0 1.7 0a0.85 0.85 0 1 0 -1.7 0z"/><path d="M20.15 6a0.85 0.85 0 1 0 1.7 0a0.85 0.85 0 1 0 -1.7 0z"/><path d="M3 20.2h18v1.6h-18z"/></svg>"##,
+    ),
+];
+
+fn install_icons() {
+    let dir = nyx_core::paths::cache_dir().join("icons");
+    for (name, svg) in ICONS {
+        let file = dir.join(format!("{name}.svg"));
+        if std::fs::read_to_string(&file).ok().as_deref() != Some(*svg) {
+            let _ = std::fs::create_dir_all(&dir);
+            let _ = std::fs::write(&file, svg);
+        }
+    }
+    if let Some(display) = gtk::gdk::Display::default() {
+        gtk::IconTheme::for_display(&display).add_search_path(&dir);
+    }
+}
+
 /// Install the stylesheet and the current palette, and follow Omarchy live.
 pub fn install() {
+    install_icons();
     nyx_theme::use_design_2();
     nyx_theme::install(Style {
         window_class: "weather-window",

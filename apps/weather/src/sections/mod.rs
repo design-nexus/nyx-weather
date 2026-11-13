@@ -18,6 +18,8 @@ pub struct Section {
     pub title: &'static str,
     pub icon: &'static str,
     pub description: &'static str,
+    /// Quiet text at the end of its sidebar row.
+    pub readout: &'static str,
     pub nav: bool,
     pub build: fn(&Page, Option<&ForecastSnapshot>, bool, Option<&str>),
 }
@@ -27,58 +29,74 @@ pub fn all() -> Vec<Section> {
         Section {
             id: "overview",
             group: "Forecast",
-            title: "Overview",
-            icon: "weather-clear-symbolic",
-            description: "Current conditions, alerts, 24-hour strip and 7-day forecast",
+            title: "Today",
+            icon: "weather-few-clouds-symbolic",
+            description: "Alerts, conditions, the next 24 hours, readings and ten days (Ctrl+1)",
+            readout: "",
             nav: true,
             build: overview::build,
         },
         Section {
             id: "hourly",
             group: "Forecast",
-            title: "Hourly & Graphs",
-            icon: "view-continuous-symbolic",
-            description: "48-hour temperature, precipitation, wind, humidity and pressure curves",
+            title: "Hourly",
+            icon: "nyx-weather-graph-symbolic",
+            description: "48 hours of temperature, rain, wind, humidity and pressure (Ctrl+2)",
+            readout: "48 h",
             nav: true,
             build: hourly::build,
         },
         Section {
             id: "daily",
             group: "Forecast",
-            title: "10-Day Outlook",
+            title: "10 days",
             icon: "x-office-calendar-symbolic",
-            description: "Extended 10-day forecast with daily wind, UV, daylight and rain totals",
+            description: "Ten days with wind, UV, daylight and rain totals (Ctrl+3)",
+            readout: "",
             nav: true,
             build: daily::build,
         },
         Section {
             id: "radar",
-            group: "Maps & Radar",
-            title: "Radar & Overlays",
-            icon: "mark-location-symbolic",
-            description: "RainViewer radar, infrared satellite, and current wind, temperature and pressure maps",
+            group: "Maps",
+            title: "Radar",
+            icon: "nyx-weather-radar-symbolic",
+            description: "Radar, infrared satellite, and wind and temperature maps (Ctrl+4)",
+            readout: "",
             nav: true,
             build: radar::build,
         },
         Section {
             id: "air-quality",
-            group: "Environment",
-            title: "Air Quality & Pollen",
-            icon: "weather-fog-symbolic",
-            description: "US & European AQI, PM2.5, PM10, ozone, NO₂, SO₂, CO, dust, UV and pollen",
+            group: "Outdoors",
+            title: "Air and pollen",
+            icon: "nyx-weather-leaf-symbolic",
+            description: "US and European AQI, particles and gases, UV and pollen (Ctrl+5)",
+            readout: "",
             nav: true,
             build: air_quality::build,
         },
         Section {
             id: "astronomy",
-            group: "Environment",
-            title: "Sun, Moon & Models",
+            group: "Outdoors",
+            title: "Sun and moon",
             icon: "weather-clear-night-symbolic",
-            description: "Solar elevation arc, lunar phase & illumination, and ECMWF / GFS / ICON models",
+            description: "The sun's path, the moon's phase, and the forecast models compared (Ctrl+6)",
+            readout: "",
             nav: true,
             build: astronomy::build,
         },
     ]
+}
+
+/// A sidebar group's section colour: the theme's `[sections.weather]` where it names
+/// one (Maps is `maps-radar`, Outdoors `environment`), a swatch otherwise.
+pub fn group_section(group: &str) -> &'static str {
+    match group {
+        "Maps" => "maps-radar",
+        "Outdoors" => "environment",
+        _ => "swatch-violet",
+    }
 }
 
 /// A warning banner with one action, Retry.

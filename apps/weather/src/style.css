@@ -65,16 +65,51 @@
   border: none;
 }
 
-/* ---------- Severe weather alert banner ---------- */
+/* ---------- Severe weather alert: a calm banner with Details ---------- */
 
-/* The shared warning banner (alpha(danger) tint and border); only spacing here. */
 .alert-banner {
   margin-bottom: 12px;
+  padding: 10px 12px 10px 14px;
+  border-radius: var(--nyx-radius-card);
+  background: mix(@theme_bg, @theme_warning, 0.10);
+  box-shadow: inset 0 0 0 1px alpha(@theme_warning, 0.28);
+}
+
+.alert-banner.extreme {
+  background: mix(@theme_bg, @theme_danger, 0.09);
+  box-shadow: inset 0 0 0 1px alpha(@theme_danger, 0.25);
+}
+
+.alert-banner .alert-icon {
+  -gtk-icon-size: 18px;
+  color: @theme_warning;
+}
+
+.alert-banner.extreme .alert-icon {
+  color: @theme_danger;
 }
 
 .alert-title {
   font-weight: 600;
-  color: @theme_danger;
+  color: @theme_text;
+}
+
+.alert-sub {
+  font-size: 0.923em;
+  color: @theme_dim_text;
+}
+
+window.weather-window button.alert-details {
+  padding: 4px 12px;
+  min-height: 0;
+  background: alpha(@theme_text, 0.06);
+  box-shadow: inset 0 0 0 1px @hairline;
+  color: @theme_text;
+  font-weight: 500;
+}
+
+window.weather-window button.alert-details:hover {
+  background: alpha(@theme_text, 0.1);
 }
 
 .alert-headline {
@@ -83,136 +118,273 @@
 }
 
 .alert-body {
-  font-size: 0.88em;
   color: @theme_dim_text;
 }
 
-/* ---------- Current conditions hero ---------- */
-
-.hero-card {
-  background: @theme_card;
-  border: none;
-  border-radius: var(--nyx-radius-card);
-  padding: 18px 20px;
-  margin-bottom: 6px;
+.today-banner {
+  margin-bottom: 12px;
 }
 
-.hero-location {
-  font-size: 1.25em;
+/* ---------- Today: the conditions and the next two hours ---------- */
+
+.settings-page.today {
+  padding: 14px 18px 18px;
+}
+
+.today-hero {
+  padding: 16px 18px;
+  border-radius: var(--nyx-radius-card);
+  background: linear-gradient(135deg, mix(@theme_card, @theme_warning, 0.12), mix(@theme_card, @theme_accent, 0.10));
+  box-shadow: inset 0 0 0 1px @hairline;
+}
+
+.hero-place {
+  font-size: 1.154em;
   font-weight: 600;
   color: @theme_text;
 }
 
-.hero-subtitle {
-  font-size: 0.88em;
+.hero-place-sub {
+  margin-left: 2px;
+  font-size: 0.923em;
   color: @theme_dim_text;
 }
 
 .hero-temp {
-  font-size: 2.2em;
+  font-size: 3.6em;
   font-weight: 600;
+  letter-spacing: -0.04em;
   color: @theme_text;
   font-feature-settings: "tnum";
 }
 
 .hero-condition {
-  font-size: 1.06em;
-  font-weight: 500;
-  color: @theme_text;
-}
-
-.hero-nowcast {
-  font-size: 0.9em;
+  font-size: 1.077em;
   font-weight: 600;
+  color: @theme_text;
 }
 
 .hero-meta {
-  font-size: 0.9em;
   color: @theme_dim_text;
   font-feature-settings: "tnum";
 }
 
-.hero-high {
-  font-size: 0.9em;
+.hero-rain {
+  padding-left: 18px;
+  border-left: 1px solid @hairline;
+}
+
+.hero-rain.stacked {
+  padding: 12px 0 0;
+  border-left: none;
+  border-top: 1px solid @hairline;
+}
+
+.hero-rain-key {
+  font-size: 0.846em;
   font-weight: 600;
-  color: @weather_warm;
-  font-feature-settings: "tnum";
+  color: @theme_text_tertiary;
 }
 
-.hero-low {
-  font-size: 0.9em;
+.hero-rain-key image {
+  -gtk-icon-size: 13px;
+}
+
+.hero-rain-summary {
   font-weight: 600;
-  color: @weather_cold;
-  font-feature-settings: "tnum";
-}
-
-.hero-quick-strip {
-  padding-top: 6px;
-}
-
-.hero-stat {
-  font-size: 0.86em;
   color: @theme_text;
-  font-feature-settings: "tnum";
 }
 
-.hero-stat-wind {
-  color: @weather_wind;
+.hero-rain-axis {
+  font-size: 0.77em;
+  color: @theme_text_tertiary;
 }
 
-.hero-stat-rain {
-  color: @weather_rain;
+/* A heading over a part of the page, with its link to the full page. */
+.sechead {
+  margin: 16px 2px 8px;
+  min-height: 22px;
 }
 
-.hero-stat-uv {
-  color: @weather_sun;
+.today-days > .sechead:first-child {
+  margin-top: 0;
 }
 
-.hero-stat-pressure {
-  color: @weather_uv;
+.sechead-title {
+  font-size: 0.923em;
+  font-weight: 600;
+  color: @theme_text;
 }
 
-/* ---------- 24-hour forecast strip ---------- */
-
-.hourly-scroller {
-  min-height: 114px;
+window.weather-window button.more-link {
+  padding: 0 4px;
+  min-height: 20px;
+  font-size: 0.923em;
+  font-weight: 500;
+  color: @theme_accent;
+  background: transparent;
+  box-shadow: none;
 }
 
-.hourly-cell {
-  min-width: 64px;
-  padding: 12px 10px;
-  border-radius: var(--nyx-radius-small);
+window.weather-window button.more-link:hover {
+  background: alpha(@theme_accent, 0.1);
 }
 
-/* Now: the selection pill, no underline. */
-.hourly-cell.now {
-  background: @nav_active;
+/* ---------- The next 24 hours ---------- */
+
+.hour-strip {
+  padding: 8px 0 10px;
+  border-radius: var(--nyx-radius-card);
+  background: @theme_card;
+  box-shadow: inset 0 0 0 1px @hairline;
 }
 
-.hourly-time {
-  font-size: 0.82em;
+.hour-time {
+  font-size: 0.846em;
   color: @theme_dim_text;
   font-feature-settings: "tnum";
 }
 
-.hourly-cell.now .hourly-time {
+.hour-cell.now .hour-time {
   color: @theme_accent;
   font-weight: 600;
 }
 
-.hourly-pop {
-  font-size: 0.78em;
+.hour-pop {
+  min-height: 12px;
+  font-size: 0.77em;
   font-weight: 600;
-  color: @weather_rain;
   font-feature-settings: "tnum";
-  min-height: 15px;
 }
 
-.hourly-temp {
-  font-size: 0.94em;
+.hour-line {
+  margin-top: 2px;
+}
+
+.hour-temp {
   font-weight: 600;
   color: @theme_text;
   font-feature-settings: "tnum";
+}
+
+/* ---------- Right now: the readings ---------- */
+
+window.weather-window menubutton.reading > button {
+  padding: 12px 14px;
+  border-radius: var(--nyx-radius-card);
+  background: @theme_card;
+  box-shadow: inset 0 0 0 1px @hairline;
+  font-weight: normal;
+}
+
+window.weather-window menubutton.reading > button:hover {
+  background: mix(@theme_card, @theme_text, 0.04);
+}
+
+.reading-key {
+  font-size: 0.846em;
+  font-weight: 600;
+  color: @theme_text_tertiary;
+}
+
+.reading-key image {
+  -gtk-icon-size: 14px;
+}
+
+.reading-value {
+  font-size: 1.231em;
+  font-weight: 600;
+  color: @theme_text;
+  font-feature-settings: "tnum";
+}
+
+.reading-sub {
+  font-size: 0.923em;
+  color: @theme_dim_text;
+}
+
+.reading-details {
+  padding: 8px 6px;
+  min-width: 240px;
+}
+
+.reading-details-title {
+  font-weight: 600;
+  margin-bottom: 2px;
+}
+
+/* ---------- The sun and moon ---------- */
+
+.sky-row {
+  margin-top: 10px;
+  padding: 8px 10px 8px 14px;
+  border-radius: var(--nyx-radius-card);
+  background: @theme_card;
+  box-shadow: inset 0 0 0 1px @hairline;
+  color: @theme_dim_text;
+}
+
+.sky-row image {
+  -gtk-icon-size: 15px;
+}
+
+/* ---------- Ten days ---------- */
+
+.ten-days {
+  padding: 4px 0;
+  box-shadow: inset 0 0 0 1px @hairline;
+}
+
+.day-row {
+  min-height: 41px;
+  margin: 0 14px;
+}
+
+.day-row + .day-row {
+  border-top: 1px solid @hairline;
+}
+
+.day-name {
+  font-weight: 500;
+  color: @theme_text;
+}
+
+.day-row.now .day-name {
+  color: @theme_accent;
+  font-weight: 600;
+}
+
+.day-pop {
+  font-size: 0.846em;
+  font-weight: 600;
+}
+
+.day-lo {
+  color: @theme_text_tertiary;
+  font-feature-settings: "tnum";
+}
+
+.day-hi {
+  font-weight: 600;
+  color: @theme_text;
+  font-feature-settings: "tnum";
+}
+
+.week-card {
+  margin-top: 10px;
+  padding: 10px 14px;
+  border-radius: var(--nyx-radius-card);
+  background: mix(@theme_card, @theme_accent, 0.08);
+  box-shadow: inset 0 0 0 1px alpha(@theme_accent, 0.18);
+}
+
+.week-title {
+  font-weight: 600;
+  color: @theme_text;
+}
+
+.week-text {
+  color: @theme_dim_text;
 }
 
 /* ---------- 7-day & 10-day forecast ---------- */
@@ -290,38 +462,101 @@ button.detail-expand-header {
   font-size: 0.88em;
 }
 
-/* ---------- Radar & Overlays ---------- */
+/* ---------- Radar: the page bar, the map, and the controls over it ---------- */
 
 .settings-page.page-radar {
-  padding-left: 14px;
-  padding-right: 14px;
+  padding: 0;
 }
 
-.radar-toolbar {
-  padding: 10px 16px;
+.radar-bar {
+  min-height: 50px;
+  padding: 0 12px 0 18px;
+  border-bottom: 1px solid @sheet_line;
+}
+
+.radar-bar .page-title {
+  font-size: 1.154em;
+  font-weight: 600;
+  color: @theme_text;
+}
+
+.radar-bar .page-sub {
+  color: @theme_text_tertiary;
 }
 
 .radar-canvas {
   margin: 0;
 }
 
-/* Zoom in, the level and zoom out, stacked on the map's top-right corner. */
+/* Zoom in, out and back to the place, stacked on the map's top-right corner. */
 .map-zoom {
-  margin: 10px;
-  padding: 2px;
+  margin: 14px;
+  padding: 3px;
   border-radius: var(--nyx-radius-small);
-  background: alpha(@theme_popover, 0.92);
+  background: @theme_popover;
   box-shadow: 0 2px 8px alpha(@theme_shadow, 0.35);
 }
 
-.map-zoom label {
-  margin: 2px 0;
-  font-size: 11.5px;
-  color: @theme_dim_text;
+/* Play, the timeline and the opacity, floating at the map's foot (PLAY_BAR_MARGIN). */
+.radar-play {
+  margin: 14px;
+  padding: 10px 14px 6px;
+  border-radius: var(--nyx-radius-card);
+  background: @theme_popover;
+  box-shadow: 0 2px 10px alpha(@theme_shadow, 0.35);
 }
 
-.radar-timeline-row {
-  padding: 10px 16px 12px;
+window.weather-window button.radar-play-btn {
+  min-width: 34px;
+  min-height: 34px;
+  padding: 0;
+  border-radius: 999px;
+  background: @theme_accent;
+  color: @theme_on_accent;
+  margin-bottom: 4px;
+}
+
+window.weather-window button.radar-play-btn:hover {
+  background: mix(@theme_accent, @theme_text, 0.12);
+}
+
+.radar-timeline marks label {
+  font-size: 0.77em;
+  color: @theme_text_tertiary;
+}
+
+.radar-frame-time {
+  font-size: 0.846em;
+  color: @theme_dim_text;
+  font-feature-settings: "tnum";
+  margin-bottom: 4px;
+}
+
+.radar-opacity {
+  padding-left: 14px;
+  border-left: 1px solid @hairline;
+  font-size: 0.846em;
+  color: @theme_dim_text;
+  margin-bottom: 4px;
+}
+
+/* A layer with nothing to play: the time and the opacity, or just the opacity. */
+.radar-play.no-timeline {
+  padding: 8px 14px;
+}
+
+.radar-play.no-timeline .radar-frame-time,
+.radar-play.no-timeline .radar-opacity {
+  margin-bottom: 0;
+}
+
+.radar-opacity.alone {
+  padding-left: 0;
+  border-left: none;
+}
+
+.radar-details {
+  padding: 8px 6px;
 }
 
 /* ---------- Moon & Astronomy ---------- */
@@ -355,18 +590,68 @@ button.detail-expand-header {
   font-size: 0.846em;
 }
 
-/* ---------- Saved locations in sidebar ---------- */
+/* ---------- Places in the sidebar ---------- */
 
-.nav-loc-badge {
-  font-size: 0.885em;
-  color: @theme_text_tertiary;
+.settings-navigation button.nav-item {
+  min-height: 32px;
+}
+
+/* The place in use: the selection's pill without its edge, so the page keeps it. */
+.settings-navigation button.nav-item.current {
+  background: @nav_active;
+  color: @theme_text;
+}
+
+.settings-navigation button.nav-item.place .nav-icon {
+  -gtk-icon-size: 16px;
+}
+
+/* In the icon rail a place is its temperature. */
+.place-temp {
+  font-size: 0.923em;
+  font-weight: 600;
+  color: @theme_text;
   font-feature-settings: "tnum";
 }
 
-/* The location in use: a quiet pill, so the section keeps the accent selection. */
-.settings-navigation button.nav-item.current {
-  background: alpha(@theme_text, 0.05);
-  color: @theme_text;
+.settings-navigation button.nav-item.current .place-temp {
+  color: @theme_accent;
+}
+
+.settings-navigation .nav-readout {
+  font-feature-settings: "tnum";
+}
+
+/* The icon rail's mark where a group starts: a short bar in its colour. */
+.settings-navigation separator.nav-divider {
+  margin: 8px 14px 6px;
+  min-height: 2px;
+  border-radius: 1px;
+  background: @theme_divider;
+}
+
+.nav-foot {
+  padding: 8px 10px 4px;
+}
+
+.nav-foot .status-readout {
+  color: @theme_text_tertiary;
+  font-size: 0.846em;
+}
+
+.nav-foot .status-icon {
+  -gtk-icon-size: 13px;
+  color: @theme_text_tertiary;
+}
+
+.nav-foot .status-icon.ok { color: @theme_success; }
+.nav-foot .status-icon.warn { color: @theme_warning; }
+
+window.weather-window .search-key {
+  margin-right: 10px;
+  font-size: 0.846em;
+  color: @theme_text_tertiary;
+  opacity: 0.8;
 }
 
 /* ---------- Header and page foot ---------- */

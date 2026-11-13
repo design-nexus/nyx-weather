@@ -782,7 +782,14 @@ impl AlertSeverity {
     }
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+/// When an alert's hazard is in force (RFC 3339 times).
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, Default)]
+pub struct AlertPeriod {
+    pub onset: Option<String>,
+    pub ends: Option<String>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, Default)]
 pub struct WeatherAlert {
     pub id: String,
     pub event: String,
@@ -791,9 +798,25 @@ pub struct WeatherAlert {
     pub instruction: Option<String>,
     pub severity: AlertSeverity,
     pub area: String,
+    /// When the message was issued.
     pub effective: Option<String>,
+    /// When the message expires (NWS updates it by then), not when the hazard ends.
     pub expires: Option<String>,
     pub sender: Option<String>,
+    #[serde(default)]
+    pub sent: Option<String>,
+    /// The ids of the earlier messages this one updates.
+    #[serde(default)]
+    pub references: Vec<String>,
+    /// VTEC event keys ("KBMX.FZ.W.0002"): the same hazard across its updates.
+    #[serde(default)]
+    pub vtec: Vec<String>,
+    /// When it is in force, oldest first; more than one when one alert covers separate times.
+    #[serde(default)]
+    pub periods: Vec<AlertPeriod>,
+    /// Every message id folded into this alert.
+    #[serde(default)]
+    pub merged_ids: Vec<String>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -924,12 +947,11 @@ impl ForecastSnapshot {
         let quarter = (local - chrono::Duration::minutes(15)).format("%Y-%m-%dT%H:%M").to_string();
         self.minutely_precip.retain(|(t, _)| t.as_str() > quarter.as_str());
 
-        self.alerts.retain(|a| {
-            a.expires
-                .as_deref()
-                .and_then(|e| chrono::DateTime::parse_from_rfc3339(e).ok())
-                .is_none_or(|e| e.timestamp() > now_unix)
-        });
+        let alerts = std::mem::take(&mut self.alerts);
+        self.alerts = crate::alerts::merge_alerts(alerts)
+            .into_iter()
+            .filter_map(|a| a.advanced_to(now_unix))
+            .collect();
     }
 
     /// "Rain in 15 min", "Rain stopping in 30 min" or "Rain for the next 2 hours", from

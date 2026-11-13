@@ -1,6 +1,7 @@
 //! NOAA / National Weather Service (NWS) active severe-weather alert adapter for US locations.
 
-use crate::model::{AlertSeverity, WeatherAlert};
+use crate::alerts::merge_alerts;
+use crate::model::{AlertPeriod, AlertSeverity, WeatherAlert};
 use crate::provider::{AlertProvider, ProviderError};
 use reqwest::{
     blocking::Client,
@@ -70,10 +71,30 @@ impl NoaaAlertProvider {
                 _ => AlertSeverity::Minor,
             };
             let area = props["areaDesc"].as_str().unwrap_or("").to_string();
-            let effective = props["effective"].as_str().map(str::to_string);
-            let expires = props["expires"].as_str().map(str::to_string);
-            let sender = props["senderName"].as_str().map(str::to_string);
+            let text = |key: &str| props[key].as_str().filter(|s| !s.is_empty()).map(str::to_string);
+            let effective = text("effective");
+            let expires = text("expires");
+            let sender = text("senderName");
+            let references = props["references"]
+                .as_array()
+                .map(|refs| refs.iter().filter_map(|r| r["identifier"].as_str().map(str::to_string)).collect())
+                .unwrap_or_default();
+            let vtec: Vec<(String, String)> = props["parameters"]["VTEC"]
+                .as_array()
+                .map(|v| v.iter().filter_map(|s| s.as_str().and_then(parse_vtec)).collect())
+                .unwrap_or_default();
+            if props["status"].as_str().is_some_and(|s| s != "Actual")
+                || props["messageType"].as_str() == Some("Cancel")
+                || (!vtec.is_empty() && vtec.iter().all(|(action, _)| action == "CAN"))
+            {
+                continue;
+            }
+            let period = AlertPeriod {
+                onset: text("onset").or_else(|| effective.clone()),
+                ends: text("ends").or_else(|| expires.clone()),
+            };
             alerts.push(WeatherAlert {
+                merged_ids: vec![id.clone()],
                 id,
                 event: event.to_string(),
                 headline,
@@ -84,11 +105,24 @@ impl NoaaAlertProvider {
                 effective,
                 expires,
                 sender,
+                sent: text("sent"),
+                references,
+                vtec: vtec.into_iter().map(|(_, key)| key).collect(),
+                periods: vec![period],
             });
         }
-        alerts.sort_by_key(|a| std::cmp::Reverse(a.severity));
-        Ok(alerts)
+        Ok(merge_alerts(alerts))
     }
+}
+
+/// A VTEC string's action and event key: "/O.CON.KBMX.FZ.W.0003.261115T0600Z-…/" is
+/// ("CON", "KBMX.FZ.W.0003"), the same key across every update of that warning.
+fn parse_vtec(s: &str) -> Option<(String, String)> {
+    let parts: Vec<&str> = s.trim_matches('/').split('.').collect();
+    let [_, action, office, phenomenon, significance, number, ..] = parts.as_slice() else {
+        return None;
+    };
+    Some((action.to_string(), format!("{office}.{phenomenon}.{significance}.{number}")))
 }
 
 impl AlertProvider for NoaaAlertProvider {
@@ -155,5 +189,26 @@ mod tests {
         assert_eq!(alerts[0].event, "Severe Thunderstorm Warning");
         assert_eq!(alerts[0].severity, AlertSeverity::Severe);
         assert_eq!(alerts[0].area, "Travis, TX");
+        assert_eq!(alerts[0].periods[0].ends.as_deref(), Some("2026-10-18T21:00:00-05:00"));
+    }
+
+    #[test]
+    fn skips_cancellations_and_tests() {
+        let feature = |id: &str, message: &str, status: &str, vtec: &str| {
+            serde_json::json!({ "properties": {
+                "id": id, "event": "Tornado Warning", "severity": "Extreme", "messageType": message,
+                "status": status, "parameters": { "VTEC": [vtec] }
+            }})
+        };
+        let sample = serde_json::json!({ "features": [
+            feature("cancel", "Cancel", "Actual", "/O.CAN.KBMX.TO.W.0042.000000T0000Z-261113T2000Z/"),
+            feature("can-update", "Update", "Actual", "/O.CAN.KBMX.TO.W.0043.000000T0000Z-261113T2000Z/"),
+            feature("test", "Alert", "Test", "/T.NEW.KBMX.TO.W.0044.261113T1900Z-261113T2000Z/"),
+            feature("live", "Alert", "Actual", "/O.NEW.KBMX.TO.W.0045.261113T1900Z-261113T2000Z/"),
+        ]});
+        let alerts = NoaaAlertProvider::parse_alerts_json(&sample).unwrap();
+        assert_eq!(alerts.len(), 1);
+        assert_eq!(alerts[0].id, "live");
+        assert_eq!(alerts[0].vtec, ["KBMX.TO.W.0045"]);
     }
 }
