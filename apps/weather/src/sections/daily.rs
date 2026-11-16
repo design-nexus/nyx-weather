@@ -8,14 +8,16 @@ use crate::widgets::{self, Page};
 use gtk::prelude::*;
 use nyx_weather_core::{ForecastSnapshot, cardinal_direction, uv_category};
 
-pub fn build(
-    page: &Page,
-    snap: Option<&ForecastSnapshot>,
-    _stale_fallback: bool,
-    last_error: Option<&str>,
-) {
+pub fn build(page: &Page, snap: Option<&ForecastSnapshot>, _stale_fallback: bool, last_error: Option<&str>) {
     let Some(snap) = snap else {
-        super::no_forecast(page, "10-day outlook", "x-office-calendar-symbolic", "Loading 10-day outlook…", "Extended daily forecasts will appear once the forecast loads.", last_error);
+        super::no_forecast(
+            page,
+            "10-day outlook",
+            "x-office-calendar-symbolic",
+            "Loading 10-day outlook…",
+            "Extended daily forecasts will appear once the forecast loads.",
+            last_error,
+        );
         return;
     };
 
@@ -27,27 +29,10 @@ pub fn build(
 
     // 1. 10-Day High / Low & Precipitation Trend Graph
     let g_chart = page.group("10-day temperature & rain trend");
-    let x_labels: Vec<String> = snap
-        .daily
-        .iter()
-        .enumerate()
-        .map(|(i, d)| format_day_name(&d.date, i))
-        .collect();
-    let max_vals: Vec<f64> = snap
-        .daily
-        .iter()
-        .map(|d| units.temperature.convert(d.temp_max_c))
-        .collect();
-    let min_vals: Vec<f64> = snap
-        .daily
-        .iter()
-        .map(|d| units.temperature.convert(d.temp_min_c))
-        .collect();
-    let pop_bars: Vec<f64> = snap
-        .daily
-        .iter()
-        .map(|d| d.precipitation_probability_max_pct as f64)
-        .collect();
+    let x_labels: Vec<String> = snap.daily.iter().enumerate().map(|(i, d)| format_day_name(&d.date, i)).collect();
+    let max_vals: Vec<f64> = snap.daily.iter().map(|d| units.temperature.convert(d.temp_max_c)).collect();
+    let min_vals: Vec<f64> = snap.daily.iter().map(|d| units.temperature.convert(d.temp_min_c)).collect();
+    let pop_bars: Vec<f64> = snap.daily.iter().map(|d| d.precipitation_probability_max_pct as f64).collect();
 
     let chart = charts::line_chart(
         vec![
@@ -57,12 +42,7 @@ pub fn build(
                 dashed: false,
                 tone: 0,
             },
-            ChartSeries {
-                label: format!("Daily Low ({})", units.temperature.symbol()),
-                values: min_vals,
-                dashed: true,
-                tone: 2,
-            },
+            ChartSeries { label: format!("Daily Low ({})", units.temperature.symbol()), values: min_vals, dashed: true, tone: 2 },
         ],
         x_labels,
         "°".into(),
@@ -76,16 +56,8 @@ pub fn build(
     let g_days = page.group("Daily breakdown (10 days)");
     g_days.note("Click any day to inspect apparent high/low, precipitation hours, wind gusts, UV max and daylight duration.");
 
-    let all_min = snap
-        .daily
-        .iter()
-        .map(|d| d.temp_min_c)
-        .fold(f64::INFINITY, f64::min);
-    let all_max = snap
-        .daily
-        .iter()
-        .map(|d| d.temp_max_c)
-        .fold(f64::NEG_INFINITY, f64::max);
+    let all_min = snap.daily.iter().map(|d| d.temp_min_c).fold(f64::INFINITY, f64::min);
+    let all_max = snap.daily.iter().map(|d| d.temp_max_c).fold(f64::NEG_INFINITY, f64::max);
     let all_span = (all_max - all_min).max(1.0);
 
     for (idx, d) in snap.daily.iter().enumerate() {
@@ -145,42 +117,27 @@ pub fn build(
         body.set_visible(idx == 0);
 
         let app_range = match (d.apparent_max_c, d.apparent_min_c) {
-            (Some(hi), Some(lo)) => format!(
-                "{} / {}",
-                units.temperature.format_with_unit(hi),
-                units.temperature.format_with_unit(lo)
-            ),
+            (Some(hi), Some(lo)) => {
+                format!("{} / {}", units.temperature.format_with_unit(hi), units.temperature.format_with_unit(lo))
+            }
             _ => "–".into(),
         };
         let prec_detail = format!(
             "{} ({}% chance{})",
             units.precipitation.format(d.precipitation_sum_mm),
             d.precipitation_probability_max_pct,
-            d.precipitation_hours
-                .map(|h| format!(", {h:.0}h duration"))
-                .unwrap_or_default()
+            d.precipitation_hours.map(|h| format!(", {h:.0}h duration")).unwrap_or_default()
         );
-        let wdir = d
-            .wind_direction_dominant_deg
-            .map(cardinal_direction)
-            .unwrap_or("–");
+        let wdir = d.wind_direction_dominant_deg.map(cardinal_direction).unwrap_or("–");
         let wind_detail = format!(
             "{} {wdir}{}",
             units.wind_speed.format(d.wind_speed_max_kmh),
-            d.wind_gusts_max_kmh
-                .map(|g| format!(" (gusts {})", units.wind_speed.format(g)))
-                .unwrap_or_default()
+            d.wind_gusts_max_kmh.map(|g| format!(" (gusts {})", units.wind_speed.format(g))).unwrap_or_default()
         );
-        let uv_detail = d
-            .uv_index_max
-            .map(|u| format!("{u:.1} ({})", uv_category(u)))
-            .unwrap_or_else(|| "–".into());
+        let uv_detail = d.uv_index_max.map(|u| format!("{u:.1} ({})", uv_category(u))).unwrap_or_else(|| "–".into());
         let sr = format_sun_time(d.sunrise.as_deref(), units.use_24h_time);
         let ss = format_sun_time(d.sunset.as_deref(), units.use_24h_time);
-        let solar_energy = d
-            .shortwave_radiation_sum_mj
-            .map(|mj| format!("{mj:.1} MJ/m²"))
-            .unwrap_or_else(|| "–".into());
+        let solar_energy = d.shortwave_radiation_sum_mj.map(|mj| format!("{mj:.1} MJ/m²")).unwrap_or_else(|| "–".into());
 
         for (k, v) in [
             ("Feels-like high / low", app_range),

@@ -115,9 +115,7 @@ pub fn present(app: &gtk::Application, section: Option<&str>, location_arg: Opti
     theme::install();
     build(app);
 
-    let start = section
-        .map(String::from)
-        .unwrap_or_else(|| nyx_theme::start_page("overview", &prefs::get().last_section));
+    let start = section.map(String::from).unwrap_or_else(|| nyx_theme::start_page("overview", &prefs::get().last_section));
     navigate(&start);
 
     if let Some(loc_q) = location_arg {
@@ -184,28 +182,16 @@ fn rail_divider(section: &str) -> gtk::Separator {
 
 fn build(app: &gtk::Application) {
     let p = prefs::get();
-    let (def_w, def_h) = if p.float_window {
-        (460, 720)
-    } else {
-        (1280, 800)
-    };
-    let window = gtk::ApplicationWindow::builder()
-        .application(app)
-        .title("Weather")
-        .default_width(def_w)
-        .default_height(def_h)
-        .build();
+    let (def_w, def_h) = if p.float_window { (460, 720) } else { (1280, 800) };
+    let window =
+        gtk::ApplicationWindow::builder().application(app).title("Weather").default_width(def_w).default_height(def_h).build();
     window.add_css_class("weather-window");
     window.set_size_request(360, 480);
     // No client-side titlebar: Hyprland manages windows.
     window.set_titlebar(Some(&gtk::Box::new(gtk::Orientation::Horizontal, 0)));
     nyx_ui::keys::install(
         &window,
-        nyx_ui::keys::Common {
-            settings: Some(settings_dialog::open),
-            close: true,
-            ..Default::default()
-        },
+        nyx_ui::keys::Common { settings: Some(settings_dialog::open), close: true, ..Default::default() },
     );
     window.set_icon_name(Some(crate::APP_ID));
 
@@ -343,11 +329,7 @@ fn build(app: &gtk::Application) {
     let apply_width = {
         let nav = nav.clone();
         move |w: &gtk::ApplicationWindow| {
-            let width = if w.width() > 0 {
-                w.width()
-            } else {
-                w.default_width()
-            };
+            let width = if w.width() > 0 { w.width() } else { w.default_width() };
             let narrow = width > 0 && width < 980;
             settings_dialog::fit(w);
             let small = width > 0 && width < SMALL_WIDTH;
@@ -511,11 +493,7 @@ fn set_compact_hidden(root: &gtk::Box, compact: bool) {
         if w.has_css_class("nav-item")
             && let Some(content) = w.downcast_ref::<gtk::Button>().and_then(|b| b.child())
         {
-            content.set_halign(if compact {
-                gtk::Align::Center
-            } else {
-                gtk::Align::Fill
-            });
+            content.set_halign(if compact { gtk::Align::Center } else { gtk::Align::Fill });
         }
         let mut child = w.first_child();
         while let Some(c) = child {
@@ -530,11 +508,7 @@ pub fn toggle_floating_window() {
     let next = !prefs::get().float_window;
     prefs::update(|p| p.float_window = next);
     apply_floating_size(next);
-    toast(if next {
-        "Switched to floating window mode (460×720)."
-    } else {
-        "Switched to tiled window mode."
-    });
+    toast(if next { "Switched to floating window mode (460×720)." } else { "Switched to tiled window mode." });
 }
 
 pub fn apply_floating_size(float: bool) {
@@ -569,11 +543,7 @@ pub fn navigate(section: &str) {
     let Some(u) = ui() else { return };
     let (target_id, title) = {
         let b = u.borrow();
-        let found = b
-            .sections
-            .iter()
-            .find(|s| s.id == section)
-            .or_else(|| b.sections.first());
+        let found = b.sections.iter().find(|s| s.id == section).or_else(|| b.sections.first());
         let Some(s) = found else { return };
         (s.id.to_string(), s.title.to_string())
     };
@@ -605,10 +575,7 @@ pub fn rebuild_sidebar_locations() {
     }
     let p = prefs::get();
     let units = p.units();
-    let active_id = p
-        .active_location()
-        .map(|l| l.id)
-        .unwrap_or_default();
+    let active_id = p.active_location().map(|l| l.id).unwrap_or_default();
 
     for (idx, loc) in p.saved_locations.iter().enumerate() {
         let button = gtk::Button::new();
@@ -654,13 +621,9 @@ pub fn rebuild_sidebar_locations() {
         }
 
         button.set_child(Some(&content));
-        let condition = cached.as_ref().map(|c| format!(" · {} {}", temp.clone().unwrap_or_default(), c.current.condition.label()));
-        button.set_tooltip_text(Some(&format!(
-            "{}{} (Alt+{})",
-            loc.display_name(),
-            condition.unwrap_or_default(),
-            idx + 1
-        )));
+        let condition =
+            cached.as_ref().map(|c| format!(" · {} {}", temp.clone().unwrap_or_default(), c.current.condition.label()));
+        button.set_tooltip_text(Some(&format!("{}{} (Alt+{})", loc.display_name(), condition.unwrap_or_default(), idx + 1)));
         button.update_property(&[gtk::accessible::Property::Label(&loc.name)]);
         let id = loc.id.clone();
         button.connect_clicked(move |_| select_location(&id));
@@ -806,10 +769,7 @@ fn on_search_changed(text: String) {
                             }
                             row.append(&info);
 
-                            let coords = widgets::label(
-                                &format!("{:.2}°, {:.2}°", loc.latitude, loc.longitude),
-                                "dim",
-                            );
+                            let coords = widgets::label(&format!("{:.2}°, {:.2}°", loc.latitude, loc.longitude), "dim");
                             row.append(&coords);
 
                             let save_btn = widgets::icon_button("list-add-symbolic", "Save and open (Enter for the first)");
@@ -900,11 +860,7 @@ fn handle_location_arg(query: &str) {
         return;
     }
     let p = prefs::get();
-    if let Some(found) = p
-        .saved_locations
-        .iter()
-        .find(|l| l.name.eq_ignore_ascii_case(q) || l.id == q)
-    {
+    if let Some(found) = p.saved_locations.iter().find(|l| l.name.eq_ignore_ascii_case(q) || l.id == q) {
         select_location(&found.id);
         return;
     }
@@ -1011,9 +967,7 @@ pub fn refresh_active(force: bool) {
             }
             rebuild_sidebar_locations();
             rerender_current();
-            if force
-                && let Some(err) = u.borrow().last_error.clone()
-            {
+            if force && let Some(err) = u.borrow().last_error.clone() {
                 toast(&err);
             }
         },
@@ -1024,17 +978,8 @@ pub fn rerender_current() {
     let Some(u) = ui() else { return };
     let (stack, sec_id, snap, stale, err_str, readout_lbl, foot, build_fn) = {
         let b = u.borrow();
-        let sec_id = if b.current_section.is_empty() {
-            "overview".to_string()
-        } else {
-            b.current_section.clone()
-        };
-        let build_fn = b
-            .sections
-            .iter()
-            .find(|s| s.id == sec_id)
-            .or_else(|| b.sections.first())
-            .map(|s| s.build);
+        let sec_id = if b.current_section.is_empty() { "overview".to_string() } else { b.current_section.clone() };
+        let build_fn = b.sections.iter().find(|s| s.id == sec_id).or_else(|| b.sections.first()).map(|s| s.build);
         (
             b.stack.clone(),
             sec_id,
@@ -1221,11 +1166,7 @@ fn show_shortcuts() {
     list.add_css_class("group-list");
     for (keys, action) in SHORTCUTS {
         let parts = shortcut_caps(keys);
-        list.append(&widgets::row(
-            action,
-            "",
-            Some(widgets::key_caps(&parts).upcast_ref()),
-        ));
+        list.append(&widgets::row(action, "", Some(widgets::key_caps(&parts).upcast_ref())));
     }
     let scroll = gtk::ScrolledWindow::builder()
         .hscrollbar_policy(gtk::PolicyType::Never)
@@ -1283,9 +1224,7 @@ fn install_keys(window: &gtk::ApplicationWindow, search: &gtk::SearchEntry) {
         let ctrl = mods.contains(gdk::ModifierType::CONTROL_MASK);
         let alt = mods.contains(gdk::ModifierType::ALT_MASK);
         let typing = gtk::prelude::GtkWindowExt::focus(&w2).is_some_and(|f| {
-            f.is::<gtk::Text>()
-                || f.ancestor(gtk::Entry::static_type()).is_some()
-                || f.is::<gtk::SearchEntry>()
+            f.is::<gtk::Text>() || f.ancestor(gtk::Entry::static_type()).is_some() || f.is::<gtk::SearchEntry>()
         });
         let done = glib::Propagation::Stop;
 

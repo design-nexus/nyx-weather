@@ -34,11 +34,7 @@ fn rotate_hue(c: Rgb, deg: f64, min_sat: f64, target_light: Option<f64>) -> Rgb 
     let (mut h, mut s) = if d < 1e-5 {
         (210.0, 0.5)
     } else {
-        let s = if l > 0.5 {
-            d / (2.0 - max - min)
-        } else {
-            d / (max + min)
-        };
+        let s = if l > 0.5 { d / (2.0 - max - min) } else { d / (max + min) };
         let h = if (max - c.0).abs() < 1e-5 {
             ((c.1 - c.2) / d + if c.1 < c.2 { 6.0 } else { 0.0 }) * 60.0
         } else if (max - c.1).abs() < 1e-5 {
@@ -66,11 +62,7 @@ fn rotate_hue(c: Rgb, deg: f64, min_sat: f64, target_light: Option<f64>) -> Rgb 
         240..=299 => (x, 0.0, c_val),
         _ => (c_val, 0.0, x),
     };
-    Rgb(
-        (r1 + m).clamp(0.0, 1.0),
-        (g1 + m).clamp(0.0, 1.0),
-        (b1 + m).clamp(0.0, 1.0),
-    )
+    Rgb((r1 + m).clamp(0.0, 1.0), (g1 + m).clamp(0.0, 1.0), (b1 + m).clamp(0.0, 1.0))
 }
 
 /// Resolve the active `WeatherColors` from Omarchy's `colors.toml` (when in Omarchy mode)
@@ -105,12 +97,7 @@ fn derive_weather_colors(p: &Palette) -> WeatherColors {
         && let Ok(text) = std::fs::read_to_string(nyx_core::paths::omarchy_colors())
         && let Ok(table) = toml::from_str::<toml::Table>(&text)
     {
-        let get_rgb = |key: &str| {
-            table
-                .get(key)
-                .and_then(|v| v.as_str())
-                .map(Rgb::hex)
-        };
+        let get_rgb = |key: &str| table.get(key).and_then(|v| v.as_str()).map(Rgb::hex);
         if let Some(c) = get_rgb("yellow").or_else(|| get_rgb("bright_yellow")) {
             sun = c;
         }
@@ -133,15 +120,7 @@ fn derive_weather_colors(p: &Palette) -> WeatherColors {
         }
     }
 
-    WeatherColors {
-        sun,
-        warm,
-        rain,
-        wind,
-        uv,
-        cold,
-        danger,
-    }
+    WeatherColors { sun, warm, rain, wind, uv, cold, danger }
 }
 
 fn extra_colors(p: &Palette) -> String {
@@ -193,10 +172,9 @@ pub fn condition_color_class(cond: WeatherCondition, is_day: bool) -> &'static s
             }
         }
         WeatherCondition::Overcast | WeatherCondition::Fog => "cond-cloud",
-        WeatherCondition::Drizzle
-        | WeatherCondition::Rain
-        | WeatherCondition::HeavyRain
-        | WeatherCondition::RainShowers => "cond-rain",
+        WeatherCondition::Drizzle | WeatherCondition::Rain | WeatherCondition::HeavyRain | WeatherCondition::RainShowers => {
+            "cond-rain"
+        }
         WeatherCondition::FreezingDrizzle
         | WeatherCondition::FreezingRain
         | WeatherCondition::Snow
@@ -264,12 +242,7 @@ pub fn install() {
         extra_colors: Some(extra_colors),
         prefs: || {
             let p = prefs::get();
-            ThemePrefs {
-                mode: p.mode,
-                theme: p.theme,
-                glow: p.glow,
-                reduce_motion: p.reduce_motion,
-            }
+            ThemePrefs { mode: p.mode, theme: p.theme, glow: p.glow, reduce_motion: p.reduce_motion }
         },
         set_theme: Some(|mode, theme| {
             prefs::update(|p| {

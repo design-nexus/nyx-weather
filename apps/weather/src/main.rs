@@ -36,10 +36,7 @@ const USAGE: &str = "Usage: nyx-weather [OPTIONS]\n\
   --refresh           refresh all saved locations in the SQLite cache and exit\n";
 
 fn main() -> glib::ExitCode {
-    nyx_core::app::init(nyx_core::app::App {
-        slug: "nyx-weather",
-        name: "Weather",
-    });
+    nyx_core::app::init(nyx_core::app::App { slug: "nyx-weather", name: "Weather" });
 
     let id = app_id();
     nyx_core::control::describe_if_asked(&control::description(&id));
@@ -64,11 +61,7 @@ fn main() -> glib::ExitCode {
     }
     if args.iter().any(|a| a == "--refresh") {
         let code = waybar::refresh_all_cli();
-        return if code == 0 {
-            glib::ExitCode::SUCCESS
-        } else {
-            glib::ExitCode::FAILURE
-        };
+        return if code == 0 { glib::ExitCode::SUCCESS } else { glib::ExitCode::FAILURE };
     }
 
     if std::env::var_os("GSK_RENDERER").is_none() {
@@ -95,18 +88,9 @@ fn main() -> glib::ExitCode {
     });
 
     app.connect_command_line(|app, cl| {
-        let argv: Vec<String> = cl
-            .arguments()
-            .iter()
-            .map(|a| a.to_string_lossy().to_string())
-            .collect();
+        let argv: Vec<String> = cl.arguments().iter().map(|a| a.to_string_lossy().to_string()).collect();
         let has = |flag: &str| argv.iter().any(|a| a == flag);
-        let value = |flag: &str| {
-            argv.iter()
-                .position(|a| a == flag)
-                .and_then(|i| argv.get(i + 1))
-                .cloned()
-        };
+        let value = |flag: &str| argv.iter().position(|a| a == flag).and_then(|i| argv.get(i + 1)).cloned();
 
         if has("--toggle")
             && let Some(w) = window::window()

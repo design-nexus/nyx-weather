@@ -8,14 +8,16 @@ use crate::{backend, prefs};
 use gtk::prelude::*;
 use nyx_weather_core::{ForecastSnapshot, calculate_moon_phase};
 
-pub fn build(
-    page: &Page,
-    snap: Option<&ForecastSnapshot>,
-    _stale_fallback: bool,
-    last_error: Option<&str>,
-) {
+pub fn build(page: &Page, snap: Option<&ForecastSnapshot>, _stale_fallback: bool, last_error: Option<&str>) {
     let Some(snap) = snap else {
-        super::no_forecast(page, "Sun, moon & models", "weather-clear-night-symbolic", "Loading astronomy & model ensemble…", "Solar trajectory, lunar phase and multi-model comparisons will appear once loaded.", last_error);
+        super::no_forecast(
+            page,
+            "Sun, moon & models",
+            "weather-clear-night-symbolic",
+            "Loading astronomy & model ensemble…",
+            "Solar trajectory, lunar phase and multi-model comparisons will appear once loaded.",
+            last_error,
+        );
         return;
     };
 
@@ -57,20 +59,14 @@ pub fn build(
     ));
 
     if snap.daily.len() >= 2
-        && let (Some(d0), Some(d1)) = (
-            snap.daily[0].daylight_duration_secs,
-            snap.daily[1].daylight_duration_secs,
-        )
+        && let (Some(d0), Some(d1)) = (snap.daily[0].daylight_duration_secs, snap.daily[1].daylight_duration_secs)
     {
         let diff_mins = (d1 - d0) / 60.0;
         let sign = if diff_mins >= 0.0 { "+" } else { "−" };
         g_sun.add(&widgets::row(
             "Daily daylight change",
             "Difference in daylight length tomorrow compared to today.",
-            Some(
-                widgets::label(&format!("{sign}{:.1} min / day", diff_mins.abs()), "tnum")
-                    .upcast_ref(),
-            ),
+            Some(widgets::label(&format!("{sign}{:.1} min / day", diff_mins.abs()), "tnum").upcast_ref()),
         ));
     }
 
@@ -84,22 +80,13 @@ pub fn build(
     let moon_meta = widgets::vbox(6);
     moon_meta.set_valign(gtk::Align::Center);
     moon_meta.set_hexpand(true);
+    moon_meta.append(&widgets::label(&format!("{}  {}", moon.glyph, moon.phase_name), "hero-condition"));
     moon_meta.append(&widgets::label(
-        &format!("{}  {}", moon.glyph, moon.phase_name),
-        "hero-condition",
-    ));
-    moon_meta.append(&widgets::label(
-        &format!(
-            "{}% illuminated  ·  Day {:.1} of 29.5-day synodic cycle",
-            moon.illumination_pct, moon.age_days
-        ),
+        &format!("{}% illuminated  ·  Day {:.1} of 29.5-day synodic cycle", moon.illumination_pct, moon.age_days),
         "dim",
     ));
     moon_meta.append(&widgets::label(
-        &format!(
-            "Next Full Moon in {:.1} days  ·  Next New Moon in {:.1} days",
-            moon.days_to_full, moon.days_to_new
-        ),
+        &format!("Next Full Moon in {:.1} days  ·  Next New Moon in {:.1} days", moon.days_to_full, moon.days_to_new),
         "tnum",
     ));
     moon_card.append(&moon_meta);
@@ -112,12 +99,7 @@ pub fn build(
             "Daily highs from each weather model Open-Meteo serves for this place, beside its blended forecast. Gaps are days past a model's range.",
         );
 
-        let x_labels: Vec<String> = snap
-            .daily
-            .iter()
-            .enumerate()
-            .map(|(i, d)| format_day_name(&d.date, i))
-            .collect();
+        let x_labels: Vec<String> = snap.daily.iter().enumerate().map(|(i, d)| format_day_name(&d.date, i)).collect();
 
         let series: Vec<ChartSeries> = snap
             .models
@@ -125,37 +107,20 @@ pub fn build(
             .enumerate()
             .map(|(idx, m)| ChartSeries {
                 label: m.model_name.clone(),
-                values: m
-                    .daily_max_c
-                    .iter()
-                    .map(|&c| units.temperature.convert(c))
-                    .collect(),
+                values: m.daily_max_c.iter().map(|&c| units.temperature.convert(c)).collect(),
                 dashed: idx % 2 == 1,
                 tone: idx,
             })
             .collect();
 
-        let model_chart = charts::line_chart(
-            series,
-            x_labels,
-            "°".into(),
-            None,
-            None,
-            195,
-        );
+        let model_chart = charts::line_chart(series, x_labels, "°".into(), None, None, 195);
         g_models.add(&model_chart);
 
         for m in &snap.models {
             let first = |v: &[f64]| v.first().copied().filter(|x| x.is_finite());
-            let hi0 = first(&m.daily_max_c)
-                .map(|v| units.temperature.format(v))
-                .unwrap_or_else(|| "–".into());
-            let lo0 = first(&m.daily_min_c)
-                .map(|v| units.temperature.format(v))
-                .unwrap_or_else(|| "–".into());
-            let p0 = first(&m.daily_precip_mm)
-                .map(|v| units.precipitation.format(v))
-                .unwrap_or_else(|| "–".into());
+            let hi0 = first(&m.daily_max_c).map(|v| units.temperature.format(v)).unwrap_or_else(|| "–".into());
+            let lo0 = first(&m.daily_min_c).map(|v| units.temperature.format(v)).unwrap_or_else(|| "–".into());
+            let p0 = first(&m.daily_precip_mm).map(|v| units.precipitation.format(v)).unwrap_or_else(|| "–".into());
             let summary = format!("Today H: {hi0}  L: {lo0}  ·  Precip {p0}");
             g_models.add(&widgets::row(
                 &m.model_name,

@@ -14,8 +14,8 @@ use crate::{backend, cmd, prefs, theme};
 use gtk::prelude::*;
 use gtk::{cairo, glib};
 use nyx_weather_core::{
-    FieldGrid, ForecastSnapshot, Location, OpenMeteoConfig, RAINVIEWER_MAX_ZOOM, RadarClient, RadarFrame,
-    RadarLayerKind, RadarManifest, TileView, cardinal_direction, iem_radar_frames, iem_satellite_frame,
+    FieldGrid, ForecastSnapshot, Location, OpenMeteoConfig, RAINVIEWER_MAX_ZOOM, RadarClient, RadarFrame, RadarLayerKind,
+    RadarManifest, TileView, cardinal_direction, iem_radar_frames, iem_satellite_frame,
 };
 use std::cell::{Cell, RefCell};
 use std::collections::HashMap;
@@ -244,9 +244,9 @@ impl Ctx {
             let mut st = self.state.borrow_mut();
             let key = SceneKey { zoom: st.zoom, layer: st.layer, w, h, scale };
             // A smaller canvas shows the middle of what's there.
-            let fits = st.scene.is_some_and(|k| {
-                k.zoom == key.zoom && k.layer == key.layer && k.scale == key.scale && w <= k.w && h <= k.h
-            });
+            let fits = st
+                .scene
+                .is_some_and(|k| k.zoom == key.zoom && k.layer == key.layer && k.scale == key.scale && w <= k.w && h <= k.h);
             if fits {
                 drop(st);
                 self.update_timeline();
@@ -326,7 +326,9 @@ impl Ctx {
                 }
                 let me2 = me.clone();
                 cmd::background(
-                    move || maprender::compose(&view, &backend::fetch_tiles(&RadarClient::basemap_urls(&view)), &geom, scale, &colors),
+                    move || {
+                        maprender::compose(&view, &backend::fetch_tiles(&RadarClient::basemap_urls(&view)), &geom, scale, &colors)
+                    },
                     move |raster| {
                         if me2.state.borrow().generation != generation {
                             return;
@@ -350,8 +352,7 @@ impl Ctx {
             let Some(f) = st.frames.get(idx).cloned() else { return };
             (f, st.manifest.as_ref().map(|m| m.host.clone()).unwrap_or_default())
         };
-        let view =
-            TileView::covering(self.loc.latitude, self.loc.longitude, geom.z, frame.tile_zoom(geom.z), geom.w, geom.h);
+        let view = TileView::covering(self.loc.latitude, self.loc.longitude, geom.z, frame.tile_zoom(geom.z), geom.w, geom.h);
         let recolor = match frame.palette() {
             Some(p) => Recolor::Radar(p),
             None => Recolor::infrared(),
@@ -535,18 +536,11 @@ impl Ctx {
     }
 }
 
-pub fn build(
-    page: &Page,
-    snap: Option<&ForecastSnapshot>,
-    _stale_fallback: bool,
-    _last_error: Option<&str>,
-) {
+pub fn build(page: &Page, snap: Option<&ForecastSnapshot>, _stale_fallback: bool, _last_error: Option<&str>) {
     let p = prefs::get();
     let utc_offset = snap.map(|s| s.utc_offset_seconds as i64).unwrap_or(0);
     let units = p.units();
-    let loc = snap
-        .map(|s| s.location.clone())
-        .or_else(|| p.active_location());
+    let loc = snap.map(|s| s.location.clone()).or_else(|| p.active_location());
 
     let Some(loc) = loc else {
         let g = page.group("Radar & overlays");
@@ -582,12 +576,7 @@ pub fn build(
     sub_lbl.set_xalign(0.0);
     bar.append(&sub_lbl);
     let layer_seg = widgets::segmented(
-        &widgets::opts(&[
-            ("radar", "Radar"),
-            ("satellite", "Satellite"),
-            ("wind", "Wind"),
-            ("temp", "Temperature"),
-        ]),
+        &widgets::opts(&[("radar", "Radar"), ("satellite", "Satellite"), ("wind", "Wind"), ("temp", "Temperature")]),
         state.borrow().layer.id(),
         {
             let state = state.clone();
@@ -959,21 +948,15 @@ pub fn build(
             units.wind_speed.format(s.current.wind_speed_kmh),
             cardinal_direction(s.current.wind_direction_deg),
             s.current.wind_direction_deg,
-            s.current
-                .wind_gusts_kmh
-                .map(|g| format!(" · gusts {}", units.wind_speed.format(g)))
-                .unwrap_or_default()
+            s.current.wind_gusts_kmh.map(|g| format!(" · gusts {}", units.wind_speed.format(g))).unwrap_or_default()
         );
         details.append(&widgets::row(
             "Surface wind vector",
             "At the location itself; the Wind layer shows it across the map.",
             Some(widgets::label(&wind_vec, "tnum").upcast_ref()),
         ));
-        let precip_now = format!(
-            "{} · {}% cloud cover",
-            units.precipitation.format(s.current.precipitation_mm),
-            s.current.cloud_cover_pct
-        );
+        let precip_now =
+            format!("{} · {}% cloud cover", units.precipitation.format(s.current.precipitation_mm), s.current.cloud_cover_pct);
         details.append(&widgets::row(
             "Surface precipitation & cloud deck",
             "Current liquid-equivalent precipitation rate and total cloud fraction.",

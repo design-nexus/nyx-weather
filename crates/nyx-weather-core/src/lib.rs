@@ -21,7 +21,7 @@ pub use open_meteo::{OpenMeteoConfig, OpenMeteoProvider};
 pub use provider::{AlertProvider, ProviderError, WeatherProvider};
 pub use query::{QueryIntent, QueryResponse, evaluate_query, parse_query};
 pub use radar::{
-    RAINVIEWER_MAX_ZOOM, RadarClient, RadarFrame, RadarLayerKind, RadarManifest, TileCoord, TileView,
-    iem_radar_frames, iem_satellite_frame, lat_lon_to_tile, tile_xy,
+    RAINVIEWER_MAX_ZOOM, RadarClient, RadarFrame, RadarLayerKind, RadarManifest, TileCoord, TileView, iem_radar_frames,
+    iem_satellite_frame, lat_lon_to_tile, tile_xy,
 };
 pub use reflectivity::{Echo, RadarPalette};

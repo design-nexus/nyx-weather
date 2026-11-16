@@ -10,8 +10,8 @@ use chrono::NaiveDate;
 use gtk::prelude::*;
 use gtk::{cairo, glib};
 use nyx_weather_core::{
-    AlertPeriod, ForecastSnapshot, UnitPrefs, WeatherAlert, beaufort_scale, calculate_moon_phase, cardinal_direction, pollen_category,
-    us_aqi_category, uv_category,
+    AlertPeriod, ForecastSnapshot, UnitPrefs, WeatherAlert, beaufort_scale, calculate_moon_phase, cardinal_direction,
+    pollen_category, us_aqi_category, uv_category,
 };
 use std::cell::Cell;
 use std::rc::Rc;

@@ -4,18 +4,18 @@
 use crate::charts::{self, ChartSeries};
 use crate::widgets::{self, Page};
 use gtk::prelude::*;
-use nyx_weather_core::{
-    ForecastSnapshot, pollen_category, us_aqi_category, uv_category,
-};
+use nyx_weather_core::{ForecastSnapshot, pollen_category, us_aqi_category, uv_category};
 
-pub fn build(
-    page: &Page,
-    snap: Option<&ForecastSnapshot>,
-    _stale_fallback: bool,
-    last_error: Option<&str>,
-) {
+pub fn build(page: &Page, snap: Option<&ForecastSnapshot>, _stale_fallback: bool, last_error: Option<&str>) {
     let Some(snap) = snap else {
-        super::no_forecast(page, "Air quality & pollen", "weather-fog-symbolic", "Loading air quality & pollen…", "Atmospheric composition, particulates and pollen counts will appear once loaded.", last_error);
+        super::no_forecast(
+            page,
+            "Air quality & pollen",
+            "weather-fog-symbolic",
+            "Loading air quality & pollen…",
+            "Atmospheric composition, particulates and pollen counts will appear once loaded.",
+            last_error,
+        );
         return;
     };
 
@@ -35,9 +35,15 @@ pub fn build(
     let advice = match aq.us_aqi {
         None => "No current reading.",
         Some(0..=50) => "Air quality is satisfactory, and air pollution poses little or no risk.",
-        Some(51..=100) => "Air quality is acceptable. Unusually sensitive individuals should consider limiting prolonged outdoor exertion.",
-        Some(101..=150) => "Members of sensitive groups may experience health effects. The general public is less likely to be affected.",
-        Some(151..=200) => "Everyone may begin to experience health effects; sensitive groups may experience more serious effects.",
+        Some(51..=100) => {
+            "Air quality is acceptable. Unusually sensitive individuals should consider limiting prolonged outdoor exertion."
+        }
+        Some(101..=150) => {
+            "Members of sensitive groups may experience health effects. The general public is less likely to be affected."
+        }
+        Some(151..=200) => {
+            "Everyone may begin to experience health effects; sensitive groups may experience more serious effects."
+        }
         Some(_) => "Health alert: outdoor exertion should be avoided.",
     };
     g_summary.note(advice);
@@ -52,12 +58,7 @@ pub fn build(
         };
         aqi_right.append(&widgets::tag(us_aqi_category(us_aqi), aqi_tag_class));
     }
-    aqi_right.append(&widgets::label(
-        &aq.us_aqi
-            .map(|v| format!("{v} AQI"))
-            .unwrap_or_else(|| "Unavailable".into()),
-        "tnum",
-    ));
+    aqi_right.append(&widgets::label(&aq.us_aqi.map(|v| format!("{v} AQI")).unwrap_or_else(|| "Unavailable".into()), "tnum"));
 
     g_summary.add(&widgets::row(
         "US EPA Air Quality Index",
@@ -68,13 +69,8 @@ pub fn build(
         "European Air Quality Index (EAQI)",
         "European Environment Agency 0–100+ scale.",
         Some(
-            widgets::label(
-                &aq.european_aqi
-                    .map(|v| format!("{v} EAQI"))
-                    .unwrap_or_else(|| "Unavailable".into()),
-                "tnum",
-            )
-            .upcast_ref(),
+            widgets::label(&aq.european_aqi.map(|v| format!("{v} EAQI")).unwrap_or_else(|| "Unavailable".into()), "tnum")
+                .upcast_ref(),
         ),
     ));
 
@@ -84,10 +80,7 @@ pub fn build(
         let gap = |v: Option<f64>| v.unwrap_or(f64::NAN);
         let aqi_f: Vec<f64> = aq.hourly_us_aqi.iter().map(|v| gap(v.map(f64::from))).collect();
         let pm25_f: Vec<f64> = aq.hourly_pm2_5.iter().map(|&v| gap(v)).collect();
-        let start = aq
-            .hourly_start
-            .as_deref()
-            .and_then(|s| chrono::NaiveDateTime::parse_from_str(s, "%Y-%m-%dT%H:%M").ok());
+        let start = aq.hourly_start.as_deref().and_then(|s| chrono::NaiveDateTime::parse_from_str(s, "%Y-%m-%dT%H:%M").ok());
         let use_24h = crate::prefs::get().use_24h_time;
         let labels: Vec<String> = (0..aqi_f.len())
             .map(|i| match start {
@@ -100,18 +93,8 @@ pub fn build(
             .collect();
         let chart = charts::line_chart(
             vec![
-                ChartSeries {
-                    label: "US AQI".into(),
-                    values: aqi_f,
-                    dashed: false,
-                    tone: 3,
-                },
-                ChartSeries {
-                    label: "PM2.5 (μg/m³)".into(),
-                    values: pm25_f,
-                    dashed: true,
-                    tone: 4,
-                },
+                ChartSeries { label: "US AQI".into(), values: aqi_f, dashed: false, tone: 3 },
+                ChartSeries { label: "PM2.5 (μg/m³)".into(), values: pm25_f, dashed: true, tone: 4 },
             ],
             labels,
             "".into(),
@@ -127,48 +110,13 @@ pub fn build(
     g_pollutants.note("Concentrations at surface level in micrograms per cubic meter (μg/m³).");
 
     for (name, desc, val_opt, unit) in [
-        (
-            "PM2.5 (Fine particulate matter)",
-            "Inhalable particles ≤ 2.5 μm (WHO 24h guideline: 15 μg/m³).",
-            aq.pm2_5,
-            "μg/m³",
-        ),
-        (
-            "PM10 (Coarse particulate matter)",
-            "Inhalable particles ≤ 10 μm (WHO 24h guideline: 45 μg/m³).",
-            aq.pm10,
-            "μg/m³",
-        ),
-        (
-            "Ozone (O₃)",
-            "Ground-level tropospheric ozone.",
-            aq.ozone,
-            "μg/m³",
-        ),
-        (
-            "Nitrogen dioxide (NO₂)",
-            "Combustion and traffic trace gas.",
-            aq.nitrogen_dioxide,
-            "μg/m³",
-        ),
-        (
-            "Sulphur dioxide (SO₂)",
-            "Industrial and volcanic trace gas.",
-            aq.sulphur_dioxide,
-            "μg/m³",
-        ),
-        (
-            "Carbon monoxide (CO)",
-            "Incomplete combustion gas concentration.",
-            aq.carbon_monoxide,
-            "μg/m³",
-        ),
-        (
-            "Desert & mineral dust",
-            "Airborne mineral dust concentration.",
-            aq.dust,
-            "μg/m³",
-        ),
+        ("PM2.5 (Fine particulate matter)", "Inhalable particles ≤ 2.5 μm (WHO 24h guideline: 15 μg/m³).", aq.pm2_5, "μg/m³"),
+        ("PM10 (Coarse particulate matter)", "Inhalable particles ≤ 10 μm (WHO 24h guideline: 45 μg/m³).", aq.pm10, "μg/m³"),
+        ("Ozone (O₃)", "Ground-level tropospheric ozone.", aq.ozone, "μg/m³"),
+        ("Nitrogen dioxide (NO₂)", "Combustion and traffic trace gas.", aq.nitrogen_dioxide, "μg/m³"),
+        ("Sulphur dioxide (SO₂)", "Industrial and volcanic trace gas.", aq.sulphur_dioxide, "μg/m³"),
+        ("Carbon monoxide (CO)", "Incomplete combustion gas concentration.", aq.carbon_monoxide, "μg/m³"),
+        ("Desert & mineral dust", "Airborne mineral dust concentration.", aq.dust, "μg/m³"),
         (
             "Aerosol optical depth (AOD)",
             "Columnar atmospheric haze and aerosol extinction at 550 nm.",
@@ -177,19 +125,9 @@ pub fn build(
         ),
     ] {
         let txt = val_opt
-            .map(|v| {
-                if unit.is_empty() {
-                    format!("{v:.2}")
-                } else {
-                    format!("{v:.1} {unit}")
-                }
-            })
+            .map(|v| if unit.is_empty() { format!("{v:.2}") } else { format!("{v:.1} {unit}") })
             .unwrap_or_else(|| "–".into());
-        g_pollutants.add(&widgets::row(
-            name,
-            desc,
-            Some(widgets::label(&txt, "tnum").upcast_ref()),
-        ));
+        g_pollutants.add(&widgets::row(name, desc, Some(widgets::label(&txt, "tnum").upcast_ref())));
     }
 
     // 4. Pollen & Allergens
@@ -247,19 +185,11 @@ pub fn build(
         }
         right.upcast()
     };
-    g_uv.add(&widgets::row(
-        "Current UV index",
-        "Live surface ultraviolet index.",
-        Some(&uv_value(snap.current.uv_index)),
-    ));
+    g_uv.add(&widgets::row("Current UV index", "Live surface ultraviolet index.", Some(&uv_value(snap.current.uv_index))));
     g_uv.add(&widgets::row(
         "Clear-sky UV potential",
         "Unattenuated UV index without cloud cover.",
         Some(&uv_value(aq.uv_index_clear_sky)),
     ));
-    g_uv.add(&widgets::row(
-        "Today's peak UV index",
-        "Forecasted solar noon maximum.",
-        Some(&uv_value(max_uv)),
-    ));
+    g_uv.add(&widgets::row("Today's peak UV index", "Forecasted solar noon maximum.", Some(&uv_value(max_uv))));
 }

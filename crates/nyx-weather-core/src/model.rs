@@ -70,11 +70,7 @@ impl Location {
     /// Full display label (`"Austin, Texas, United States"`).
     pub fn display_name(&self) -> String {
         let sub = self.subtitle();
-        if sub.is_empty() {
-            self.name.clone()
-        } else {
-            format!("{} · {}", self.name, sub)
-        }
+        if sub.is_empty() { self.name.clone() } else { format!("{} · {}", self.name, sub) }
     }
 
     /// True when the location is within the United States (eligible for NOAA/NWS alerts).
@@ -596,22 +592,10 @@ pub fn calculate_moon_phase(unix_epoch: i64) -> MoonPhaseInfo {
     };
 
     let full_age = SYNODIC_DAYS * 0.5;
-    let days_to_full = if age_days <= full_age {
-        full_age - age_days
-    } else {
-        SYNODIC_DAYS - age_days + full_age
-    };
+    let days_to_full = if age_days <= full_age { full_age - age_days } else { SYNODIC_DAYS - age_days + full_age };
     let days_to_new = SYNODIC_DAYS - age_days;
 
-    MoonPhaseInfo {
-        phase_fraction,
-        illumination_pct,
-        age_days,
-        phase_name,
-        glyph,
-        days_to_full,
-        days_to_new,
-    }
+    MoonPhaseInfo { phase_fraction, illumination_pct, age_days, phase_name, glyph, days_to_full, days_to_new }
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
@@ -853,9 +837,7 @@ pub struct ForecastSnapshot {
 
 /// Local wall-clock time at `now_unix` for a place `utc_offset_seconds` from UTC.
 pub fn local_time(now_unix: i64, utc_offset_seconds: i32) -> chrono::NaiveDateTime {
-    chrono::DateTime::from_timestamp(now_unix + utc_offset_seconds as i64, 0)
-        .unwrap_or_default()
-        .naive_utc()
+    chrono::DateTime::from_timestamp(now_unix + utc_offset_seconds as i64, 0).unwrap_or_default().naive_utc()
 }
 
 /// Seconds since the Unix epoch.
@@ -897,11 +879,7 @@ impl ForecastSnapshot {
             }
         }
 
-        let past_hours = self
-            .hourly
-            .iter()
-            .take_while(|h| h.time.get(..13).unwrap_or(&h.time) < hour.as_str())
-            .count();
+        let past_hours = self.hourly.iter().take_while(|h| h.time.get(..13).unwrap_or(&h.time) < hour.as_str()).count();
         if past_hours > 0 && past_hours < self.hourly.len() {
             self.hourly.drain(..past_hours);
             for m in &mut self.models {
@@ -948,10 +926,7 @@ impl ForecastSnapshot {
         self.minutely_precip.retain(|(t, _)| t.as_str() > quarter.as_str());
 
         let alerts = std::mem::take(&mut self.alerts);
-        self.alerts = crate::alerts::merge_alerts(alerts)
-            .into_iter()
-            .filter_map(|a| a.advanced_to(now_unix))
-            .collect();
+        self.alerts = crate::alerts::merge_alerts(alerts).into_iter().filter_map(|a| a.advanced_to(now_unix)).collect();
     }
 
     /// "Rain in 15 min", "Rain stopping in 30 min" or "Rain for the next 2 hours", from
@@ -974,11 +949,7 @@ impl ForecastSnapshot {
     /// Up to `count` hourly entries starting at or after the current observation time.
     pub fn upcoming_hours(&self, count: usize) -> Vec<&HourlyForecast> {
         let current_prefix = self.current.time.get(..13).unwrap_or(&self.current.time);
-        let start = self
-            .hourly
-            .iter()
-            .position(|h| h.time.as_str() >= current_prefix)
-            .unwrap_or(0);
+        let start = self.hourly.iter().position(|h| h.time.as_str() >= current_prefix).unwrap_or(0);
         self.hourly.iter().skip(start).take(count).collect()
     }
 }

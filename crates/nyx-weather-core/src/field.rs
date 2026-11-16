@@ -120,10 +120,8 @@ impl FieldGrid {
                     if (a < level) != (b < level) {
                         let t = (level - a) / (b - a);
                         let (pa, pb) = (corners[i], corners[(i + 1) % 4]);
-                        crossings.push((
-                            pa.0 as f64 + (pb.0 as f64 - pa.0 as f64) * t,
-                            pa.1 as f64 + (pb.1 as f64 - pa.1 as f64) * t,
-                        ));
+                        crossings
+                            .push((pa.0 as f64 + (pb.0 as f64 - pa.0 as f64) * t, pa.1 as f64 + (pb.1 as f64 - pa.1 as f64) * t));
                     }
                 }
                 // Two crossings make one segment; four (a saddle) make two.

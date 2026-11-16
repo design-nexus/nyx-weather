@@ -63,8 +63,7 @@ impl Group {
         l.add_css_class("group-note");
         l.set_xalign(0.0);
         l.set_wrap(true);
-        self.wrapper
-            .insert_child_after(&l, self.wrapper.first_child().as_ref());
+        self.wrapper.insert_child_after(&l, self.wrapper.first_child().as_ref());
     }
 }
 

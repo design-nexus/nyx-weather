@@ -63,10 +63,7 @@ impl Cache {
     /// Store a normalized forecast snapshot inside a transaction.
     /// Existing offline data for other locations is untouched.
     pub fn put_forecast(&mut self, snapshot: &ForecastSnapshot) -> Result<()> {
-        ensure!(
-            !snapshot.location.id.trim().is_empty(),
-            "Snapshot location ID must not be empty"
-        );
+        ensure!(!snapshot.location.id.trim().is_empty(), "Snapshot location ID must not be empty");
         let json = serde_json::to_string(snapshot).context("Could not serialize forecast snapshot")?;
         let tx = self.db.transaction()?;
         tx.execute(
@@ -85,16 +82,11 @@ impl Cache {
     pub fn get_forecast(&self, location_id: &str) -> Result<Option<ForecastSnapshot>> {
         let raw: Option<String> = self
             .db
-            .query_row(
-                "SELECT snapshot_json FROM forecasts WHERE location_id = ?1",
-                params![location_id],
-                |row| row.get(0),
-            )
+            .query_row("SELECT snapshot_json FROM forecasts WHERE location_id = ?1", params![location_id], |row| row.get(0))
             .optional()?;
         match raw {
             Some(json) => {
-                let mut snapshot: ForecastSnapshot =
-                    serde_json::from_str(&json).context("Invalid cached forecast JSON")?;
+                let mut snapshot: ForecastSnapshot = serde_json::from_str(&json).context("Invalid cached forecast JSON")?;
                 snapshot.advance_to(crate::model::now_unix());
                 Ok(Some(snapshot))
             }
@@ -118,11 +110,7 @@ impl Cache {
     pub fn is_stale(&self, location_id: &str, max_age_secs: i64, now_epoch: i64) -> Result<bool> {
         let fetched_at: Option<i64> = self
             .db
-            .query_row(
-                "SELECT fetched_at FROM forecasts WHERE location_id = ?1",
-                params![location_id],
-                |row| row.get(0),
-            )
+            .query_row("SELECT fetched_at FROM forecasts WHERE location_id = ?1", params![location_id], |row| row.get(0))
             .optional()?;
         Ok(match fetched_at {
             Some(ts) => now_epoch.saturating_sub(ts) >= max_age_secs,
@@ -132,10 +120,7 @@ impl Cache {
 
     /// Delete a single location's cached forecast.
     pub fn remove_forecast(&mut self, location_id: &str) -> Result<()> {
-        self.db.execute(
-            "DELETE FROM forecasts WHERE location_id = ?1",
-            params![location_id],
-        )?;
+        self.db.execute("DELETE FROM forecasts WHERE location_id = ?1", params![location_id])?;
         Ok(())
     }
 
@@ -155,10 +140,7 @@ impl Cache {
             params![key, now_epoch, json],
         )?;
         // Searches are cached for a day; anything a month old is only taking room.
-        self.db.execute(
-            "DELETE FROM geocoding_cache WHERE fetched_at < ?1",
-            params![now_epoch - 30 * 86_400],
-        )?;
+        self.db.execute("DELETE FROM geocoding_cache WHERE fetched_at < ?1", params![now_epoch - 30 * 86_400])?;
         Ok(())
     }
 
@@ -167,16 +149,12 @@ impl Cache {
         let key = query.trim().to_lowercase();
         let row: Option<(i64, String)> = self
             .db
-            .query_row(
-                "SELECT fetched_at, locations_json FROM geocoding_cache WHERE query = ?1",
-                params![key],
-                |r| Ok((r.get(0)?, r.get(1)?)),
-            )
+            .query_row("SELECT fetched_at, locations_json FROM geocoding_cache WHERE query = ?1", params![key], |r| {
+                Ok((r.get(0)?, r.get(1)?))
+            })
             .optional()?;
         match row {
-            Some((ts, json)) if now_epoch.saturating_sub(ts) < max_age_secs => {
-                Ok(Some(serde_json::from_str(&json)?))
-            }
+            Some((ts, json)) if now_epoch.saturating_sub(ts) < max_age_secs => Ok(Some(serde_json::from_str(&json)?)),
             _ => Ok(None),
         }
     }
@@ -217,20 +195,16 @@ impl Cache {
 
     /// A surface field stored under `key`, if younger than `max_age_secs`.
     pub fn get_field(&self, key: &str, max_age_secs: i64, now_epoch: i64) -> Result<Option<crate::field::FieldGrid>> {
-        Ok(self
-            .get_tile(&format!("field:{key}"), max_age_secs, now_epoch)?
-            .and_then(|b| serde_json::from_slice(&b).ok()))
+        Ok(self.get_tile(&format!("field:{key}"), max_age_secs, now_epoch)?.and_then(|b| serde_json::from_slice(&b).ok()))
     }
 
     /// Retrieve a cached PNG tile if younger than `max_age_secs`.
     pub fn get_tile(&self, url: &str, max_age_secs: i64, now_epoch: i64) -> Result<Option<Vec<u8>>> {
         let row: Option<(i64, Vec<u8>)> = self
             .db
-            .query_row(
-                "SELECT fetched_at, png_bytes FROM tile_cache WHERE url = ?1",
-                params![url],
-                |r| Ok((r.get(0)?, r.get(1)?)),
-            )
+            .query_row("SELECT fetched_at, png_bytes FROM tile_cache WHERE url = ?1", params![url], |r| {
+                Ok((r.get(0)?, r.get(1)?))
+            })
             .optional()?;
         match row {
             Some((ts, bytes)) if now_epoch.saturating_sub(ts) < max_age_secs => Ok(Some(bytes)),
@@ -242,9 +216,7 @@ impl Cache {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::model::{
-        CurrentWeather, ForecastSnapshot, Location, ProviderAttribution, WeatherCondition,
-    };
+    use crate::model::{CurrentWeather, ForecastSnapshot, Location, ProviderAttribution, WeatherCondition};
 
     fn sample_snapshot(loc: Location, fetched_at: i64, temp: f64) -> ForecastSnapshot {
         ForecastSnapshot {
@@ -310,7 +282,16 @@ mod tests {
     #[test]
     fn stores_isolates_and_checks_staleness() -> Result<()> {
         let mut cache = Cache::open_in_memory()?;
-        let austin = Location::new("Austin", Some("Texas".into()), Some("United States".into()), Some("US".into()), 30.2672, -97.7431, None, None);
+        let austin = Location::new(
+            "Austin",
+            Some("Texas".into()),
+            Some("United States".into()),
+            Some("US".into()),
+            30.2672,
+            -97.7431,
+            None,
+            None,
+        );
         let oslo = Location::new("Oslo", None, Some("Norway".into()), Some("NO".into()), 59.9139, 10.7522, None, None);
 
         assert!(cache.is_stale(&austin.id, 1800, 10_000)?);

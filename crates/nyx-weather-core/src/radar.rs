@@ -87,7 +87,9 @@ impl RadarLayerKind {
             Self::PrecipitationRadar => "Radar reflectivity on the classic NWS scale (dBZ).",
             Self::InfraredSatellite => "Infrared cloud-top imagery.",
             Self::WindStreamlines => "Current 10 m wind over the map, from a 7×7 grid of Open-Meteo points.",
-            Self::TemperatureContour => "Current 2 m temperature and sea-level isobars (every 2 hPa), from a 7×7 grid of Open-Meteo points.",
+            Self::TemperatureContour => {
+                "Current 2 m temperature and sea-level isobars (every 2 hPa), from a 7×7 grid of Open-Meteo points."
+            }
         }
     }
 }
@@ -144,9 +146,7 @@ pub fn iem_radar_frames(now: i64) -> Vec<RadarFrame> {
         .rev()
         .map(|i| {
             let time = latest - i * IEM_STEP_SECS;
-            let stamp = chrono::DateTime::from_timestamp(time, 0)
-                .map(|t| t.format("%Y%m%d%H%M").to_string())
-                .unwrap_or_default();
+            let stamp = chrono::DateTime::from_timestamp(time, 0).map(|t| t.format("%Y%m%d%H%M").to_string()).unwrap_or_default();
             RadarFrame { time, path: format!("iem-n0q:{stamp}"), is_nowcast: false }
         })
         .collect()
@@ -311,58 +311,37 @@ impl RadarClient {
     }
 
     pub fn fetch_manifest(&self) -> Result<RadarManifest, ProviderError> {
-        let resp = self
-            .http
-            .get(RAINVIEWER_MAPS_URL)
-            .send()
-            .map_err(|e| {
-                if e.is_connect() || e.is_timeout() {
-                    ProviderError::Offline
-                } else {
-                    ProviderError::Failed("Could not reach RainViewer radar service.".into())
-                }
-            })?;
+        let resp = self.http.get(RAINVIEWER_MAPS_URL).send().map_err(|e| {
+            if e.is_connect() || e.is_timeout() {
+                ProviderError::Offline
+            } else {
+                ProviderError::Failed("Could not reach RainViewer radar service.".into())
+            }
+        })?;
         if !resp.status().is_success() {
-            return Err(ProviderError::Failed(format!(
-                "RainViewer returned HTTP {}",
-                resp.status().as_u16()
-            )));
+            return Err(ProviderError::Failed(format!("RainViewer returned HTTP {}", resp.status().as_u16())));
         }
         let mut body = Vec::new();
-        resp.take(512 * 1024)
-            .read_to_end(&mut body)
-            .map_err(|_| ProviderError::InvalidResponse)?;
+        resp.take(512 * 1024).read_to_end(&mut body).map_err(|_| ProviderError::InvalidResponse)?;
         let val: Value = serde_json::from_slice(&body).map_err(|_| ProviderError::InvalidResponse)?;
         Self::parse_manifest_json(&val)
     }
 
     pub fn parse_manifest_json(val: &Value) -> Result<RadarManifest, ProviderError> {
-        let host = val["host"]
-            .as_str()
-            .unwrap_or("https://tilecache.rainviewer.com")
-            .trim_end_matches('/')
-            .to_string();
+        let host = val["host"].as_str().unwrap_or("https://tilecache.rainviewer.com").trim_end_matches('/').to_string();
 
         let mut radar_frames = Vec::new();
         if let Some(past) = val["radar"]["past"].as_array() {
             for item in past {
                 if let (Some(time), Some(path)) = (item["time"].as_i64(), item["path"].as_str()) {
-                    radar_frames.push(RadarFrame {
-                        time,
-                        path: path.to_string(),
-                        is_nowcast: false,
-                    });
+                    radar_frames.push(RadarFrame { time, path: path.to_string(), is_nowcast: false });
                 }
             }
         }
         if let Some(nowcast) = val["radar"]["nowcast"].as_array() {
             for item in nowcast {
                 if let (Some(time), Some(path)) = (item["time"].as_i64(), item["path"].as_str()) {
-                    radar_frames.push(RadarFrame {
-                        time,
-                        path: path.to_string(),
-                        is_nowcast: true,
-                    });
+                    radar_frames.push(RadarFrame { time, path: path.to_string(), is_nowcast: true });
                 }
             }
         }
@@ -371,19 +350,12 @@ impl RadarClient {
         if let Some(infrared) = val["satellite"]["infrared"].as_array() {
             for item in infrared {
                 if let (Some(time), Some(path)) = (item["time"].as_i64(), item["path"].as_str()) {
-                    satellite_frames.push(RadarFrame {
-                        time,
-                        path: path.to_string(),
-                        is_nowcast: false,
-                    });
+                    satellite_frames.push(RadarFrame { time, path: path.to_string(), is_nowcast: false });
                 }
             }
         }
 
-        let fetched_at = SystemTime::now()
-            .duration_since(UNIX_EPOCH)
-            .map(|d| d.as_secs() as i64)
-            .unwrap_or(0);
+        let fetched_at = SystemTime::now().duration_since(UNIX_EPOCH).map(|d| d.as_secs() as i64).unwrap_or(0);
 
         if satellite_frames.is_empty() {
             satellite_frames.push(RadarFrame {
@@ -393,12 +365,7 @@ impl RadarClient {
             });
         }
 
-        Ok(RadarManifest {
-            host,
-            radar_frames,
-            satellite_frames,
-            fetched_at,
-        })
+        Ok(RadarManifest { host, radar_frames, satellite_frames, fetched_at })
     }
 
     fn is_invalid_rainviewer_tile(url: &str, bytes: &[u8]) -> bool {
@@ -420,8 +387,7 @@ impl RadarClient {
         }
         let mut buf = Vec::new();
         resp.take((MAX_TILE_BYTES + 1) as u64).read_to_end(&mut buf).ok()?;
-        if buf.is_empty() || buf.len() > MAX_TILE_BYTES || Self::is_invalid_rainviewer_tile(url, &buf)
-        {
+        if buf.is_empty() || buf.len() > MAX_TILE_BYTES || Self::is_invalid_rainviewer_tile(url, &buf) {
             return None;
         }
         Some(buf)
@@ -559,7 +525,10 @@ mod tests {
         assert_eq!(f.palette(), Some(RadarPalette::RainViewer));
         assert_eq!(f.tile_zoom(6), 5);
         assert_eq!(f.tile_zoom(9), RAINVIEWER_MAX_ZOOM);
-        assert_eq!(f.tile_url("https://tilecache.rainviewer.com/", 5, 8, 12), "https://tilecache.rainviewer.com/v2/radar/abc/512/5/8/12/2/1_1.png");
+        assert_eq!(
+            f.tile_url("https://tilecache.rainviewer.com/", 5, 8, 12),
+            "https://tilecache.rainviewer.com/v2/radar/abc/512/5/8/12/2/1_1.png"
+        );
         let rv = TileView::covering(33.5, -86.8, 6, f.tile_zoom(6), 1280.0, 720.0);
         assert_eq!(rv.tile_px, 512.0);
         assert!(rv.len() <= 12, "{rv:?}");

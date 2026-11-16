@@ -70,12 +70,16 @@ pub fn serve(app: &gtk::Application) {
             return answer(Ok(Value::Null));
         }
         let changes = matches!(request.action.as_str(), "weather.select_location" | "weather.refresh");
-        handle(&request.action, request.arguments, Box::new(move |r| {
-            answer(r.map_err(|e| nyx_actions::Error::new(nyx_actions::ErrorKind::Failed, e)));
-            if changes {
-                publish();
-            }
-        }));
+        handle(
+            &request.action,
+            request.arguments,
+            Box::new(move |r| {
+                answer(r.map_err(|e| nyx_actions::Error::new(nyx_actions::ErrorKind::Failed, e)));
+                if changes {
+                    publish();
+                }
+            }),
+        );
     }) else {
         return;
     };
@@ -101,9 +105,13 @@ fn publish() {
     if !service.watched("now") {
         return;
     }
-    handle("weather.current", json!({}), Box::new(move |r| {
-        service.publish("now", r.unwrap_or_else(|e| json!({"error": e})));
-    }));
+    handle(
+        "weather.current",
+        json!({}),
+        Box::new(move |r| {
+            service.publish("now", r.unwrap_or_else(|e| json!({"error": e})));
+        }),
+    );
 }
 
 /// Tools by name; the names from before `weather.` (`current`, `forecast`, …) still work.
@@ -136,11 +144,7 @@ pub fn handle(name: &str, args: Value, reply: Reply) {
             };
             let q = target.trim().to_lowercase();
             let p = prefs::get();
-            if let Some(found) = p
-                .saved_locations
-                .iter()
-                .find(|l| l.id == target || l.name.to_lowercase().contains(&q))
-                .cloned()
+            if let Some(found) = p.saved_locations.iter().find(|l| l.id == target || l.name.to_lowercase().contains(&q)).cloned()
             {
                 window::select_location(&found.id);
                 reply(Ok(json!({ "selected": found })));

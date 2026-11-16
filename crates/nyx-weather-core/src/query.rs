@@ -41,10 +41,8 @@ pub fn parse_query(raw: &str) -> Option<QueryIntent> {
     }
     let words: Vec<&str> = trimmed.split_whitespace().collect();
     let first_lower = words[0].to_lowercase();
-    let is_weather_prefix = matches!(
-        first_lower.as_str(),
-        "weather" | "forecast" | "rain" | "snow" | "temp" | "temperature" | "umbrella"
-    );
+    let is_weather_prefix =
+        matches!(first_lower.as_str(), "weather" | "forecast" | "rain" | "snow" | "temp" | "temperature" | "umbrella");
     if !is_weather_prefix {
         return None;
     }
@@ -73,17 +71,9 @@ pub fn parse_query(raw: &str) -> Option<QueryIntent> {
         }
     }
 
-    let location_query = if loc_tokens.is_empty() {
-        None
-    } else {
-        Some(loc_tokens.join(" "))
-    };
+    let location_query = if loc_tokens.is_empty() { None } else { Some(loc_tokens.join(" ")) };
 
-    Some(QueryIntent {
-        rain_focus,
-        day,
-        location_query,
-    })
+    Some(QueryIntent { rain_focus, day, location_query })
 }
 
 /// Evaluate a [`QueryIntent`] against a [`ForecastSnapshot`] and user unit preferences.
@@ -137,12 +127,7 @@ pub fn evaluate_query(intent: &QueryIntent, snapshot: &ForecastSnapshot, units: 
             snapshot.current.humidity_pct,
             units.precipitation.format(snapshot.current.precipitation_mm)
         );
-        return QueryResponse {
-            title,
-            subtitle,
-            details,
-            location_name: loc.clone(),
-        };
+        return QueryResponse { title, subtitle, details, location_name: loc.clone() };
     }
 
     if let Some(day) = snapshot.daily.get(day_index) {
@@ -176,12 +161,7 @@ pub fn evaluate_query(intent: &QueryIntent, snapshot: &ForecastSnapshot, units: 
             units.wind_speed.format(day.wind_speed_max_kmh)
         );
         let details = format!("{title}\n{subtitle}");
-        QueryResponse {
-            title,
-            subtitle,
-            details,
-            location_name: loc.clone(),
-        }
+        QueryResponse { title, subtitle, details, location_name: loc.clone() }
     } else {
         QueryResponse {
             title: format!("{loc}: Forecast unavailable"),
@@ -233,37 +213,18 @@ mod tests {
 
     #[test]
     fn parses_glimpse_queries() {
-        assert_eq!(
-            parse_query("weather"),
-            Some(QueryIntent {
-                rain_focus: false,
-                day: TargetDay::Today,
-                location_query: None
-            })
-        );
+        assert_eq!(parse_query("weather"), Some(QueryIntent { rain_focus: false, day: TargetDay::Today, location_query: None }));
         assert_eq!(
             parse_query("weather tomorrow"),
-            Some(QueryIntent {
-                rain_focus: false,
-                day: TargetDay::Tomorrow,
-                location_query: None
-            })
+            Some(QueryIntent { rain_focus: false, day: TargetDay::Tomorrow, location_query: None })
         );
         assert_eq!(
             parse_query("rain Friday"),
-            Some(QueryIntent {
-                rain_focus: true,
-                day: TargetDay::Weekday(4),
-                location_query: None
-            })
+            Some(QueryIntent { rain_focus: true, day: TargetDay::Weekday(4), location_query: None })
         );
         assert_eq!(
             parse_query("weather London"),
-            Some(QueryIntent {
-                rain_focus: false,
-                day: TargetDay::Today,
-                location_query: Some("London".into())
-            })
+            Some(QueryIntent { rain_focus: false, day: TargetDay::Today, location_query: Some("London".into()) })
         );
     }
 }

@@ -3,11 +3,10 @@
 //! Includes configurable endpoints, commercial licensing checks, bounded reads,
 //! rate limiting, and transient retry handling.
 
-use crate::model::{
-    AirQuality, CurrentWeather, DailyForecast, ForecastSnapshot, HourlyForecast, Location,
-    ProviderAttribution, WeatherCondition,
-};
 use crate::field::{Bounds, FieldGrid, FieldPoint};
+use crate::model::{
+    AirQuality, CurrentWeather, DailyForecast, ForecastSnapshot, HourlyForecast, Location, ProviderAttribution, WeatherCondition,
+};
 use crate::noaa::NoaaAlertProvider;
 use crate::provider::{AlertProvider, ProviderError, WeatherProvider};
 use reqwest::{
@@ -65,10 +64,7 @@ impl Default for OpenMeteoProvider {
 
 impl OpenMeteoProvider {
     pub fn new(config: OpenMeteoConfig) -> Self {
-        Self {
-            config,
-            last_request: Mutex::new(None),
-        }
+        Self { config, last_request: Mutex::new(None) }
     }
 
     /// Verify that commercial usage is not attempted against the free hosted Open-Meteo
@@ -77,18 +73,10 @@ impl OpenMeteoProvider {
         if !self.config.commercial_use {
             return Ok(());
         }
-        let has_key = self
-            .config
-            .api_key
-            .as_ref()
-            .is_some_and(|k| !k.trim().is_empty());
-        let custom_endpoint = self.config.forecast_url != DEFAULT_FORECAST_URL
-            && !self.config.forecast_url.contains("//api.open-meteo.com");
-        if has_key || custom_endpoint {
-            Ok(())
-        } else {
-            Err(ProviderError::CommercialKeyRequired)
-        }
+        let has_key = self.config.api_key.as_ref().is_some_and(|k| !k.trim().is_empty());
+        let custom_endpoint =
+            self.config.forecast_url != DEFAULT_FORECAST_URL && !self.config.forecast_url.contains("//api.open-meteo.com");
+        if has_key || custom_endpoint { Ok(()) } else { Err(ProviderError::CommercialKeyRequired) }
     }
 
     fn throttle(&self) {
@@ -106,10 +94,7 @@ impl OpenMeteoProvider {
     fn http() -> Result<Client, ProviderError> {
         let mut headers = HeaderMap::new();
         headers.insert(ACCEPT, HeaderValue::from_static("application/json"));
-        headers.insert(
-            USER_AGENT,
-            HeaderValue::from_static("NyxWeather/0.1 (https://github.com/design-nexus/nyx)"),
-        );
+        headers.insert(USER_AGENT, HeaderValue::from_static("NyxWeather/0.1 (https://github.com/design-nexus/nyx)"));
         Client::builder()
             .default_headers(headers)
             .connect_timeout(Duration::from_secs(5))
@@ -161,32 +146,22 @@ impl OpenMeteoProvider {
 
     fn read_json_response(resp: Response) -> Result<Value, ProviderError> {
         let status = resp.status().as_u16();
-        let retry_after = resp
-            .headers()
-            .get("retry-after")
-            .and_then(|v| v.to_str().ok())
-            .and_then(|s| s.parse::<u64>().ok());
+        let retry_after = resp.headers().get("retry-after").and_then(|v| v.to_str().ok()).and_then(|s| s.parse::<u64>().ok());
 
         match status {
             200..=299 => {}
             429 => return Err(ProviderError::RateLimited { retry_after_secs: retry_after }),
             400 => return Err(ProviderError::InvalidLocation),
             401 | 403 => {
-                return Err(ProviderError::Failed(
-                    "Open-Meteo rejected the API key or endpoint credentials".into(),
-                ));
+                return Err(ProviderError::Failed("Open-Meteo rejected the API key or endpoint credentials".into()));
             }
             _ => {
-                return Err(ProviderError::Failed(
-                    "Weather service could not complete the request".into(),
-                ));
+                return Err(ProviderError::Failed("Weather service could not complete the request".into()));
             }
         }
 
         let mut bytes = Vec::new();
-        resp.take(MAX_BODY + 1)
-            .read_to_end(&mut bytes)
-            .map_err(|_| ProviderError::Offline)?;
+        resp.take(MAX_BODY + 1).read_to_end(&mut bytes).map_err(|_| ProviderError::Offline)?;
         if bytes.len() as u64 > MAX_BODY {
             return Err(ProviderError::InvalidResponse);
         }
@@ -213,16 +188,7 @@ impl OpenMeteoProvider {
             let country_code = item["country_code"].as_str().map(str::to_string);
             let timezone = item["timezone"].as_str().map(str::to_string);
             let elevation_m = item["elevation"].as_f64();
-            out.push(Location::new(
-                name,
-                admin1,
-                country,
-                country_code,
-                lat,
-                lon,
-                timezone,
-                elevation_m,
-            ));
+            out.push(Location::new(name, admin1, country, country_code, lat, lon, timezone, elevation_m));
         }
         Ok(out)
     }
@@ -290,31 +256,18 @@ impl OpenMeteoProvider {
             let Some(time) = t_val.as_str() else { continue };
             let Some(temp) = h_temps.get(i).and_then(Value::as_f64) else { continue };
             let app = h_app.and_then(|a| a.get(i)).and_then(Value::as_f64).unwrap_or(temp);
-            let prob = h_prob
-                .and_then(|a| a.get(i))
-                .and_then(Value::as_f64)
-                .unwrap_or(0.0)
-                .clamp(0.0, 100.0) as u8;
+            let prob = h_prob.and_then(|a| a.get(i)).and_then(Value::as_f64).unwrap_or(0.0).clamp(0.0, 100.0) as u8;
             let prec = h_prec.and_then(|a| a.get(i)).and_then(Value::as_f64).unwrap_or(0.0);
             let code = h_code.and_then(|a| a.get(i)).and_then(Value::as_u64).unwrap_or(0) as u16;
             let day_flag = h_day.and_then(|a| a.get(i)).and_then(Value::as_u64).unwrap_or(1) != 0;
             let wind = h_wind.and_then(|a| a.get(i)).and_then(Value::as_f64).unwrap_or(0.0);
             let gusts = h_gusts.and_then(|a| a.get(i)).and_then(Value::as_f64);
-            let wdir = h_wdir
-                .and_then(|a| a.get(i))
-                .and_then(Value::as_f64)
-                .map(|d| d.rem_euclid(360.0) as u16);
+            let wdir = h_wdir.and_then(|a| a.get(i)).and_then(Value::as_f64).map(|d| d.rem_euclid(360.0) as u16);
             let uv = h_uv.and_then(|a| a.get(i)).and_then(Value::as_f64);
-            let hum = h_hum
-                .and_then(|a| a.get(i))
-                .and_then(Value::as_f64)
-                .map(|v| v.clamp(0.0, 100.0) as u8);
+            let hum = h_hum.and_then(|a| a.get(i)).and_then(Value::as_f64).map(|v| v.clamp(0.0, 100.0) as u8);
             let dew = h_dew.and_then(|a| a.get(i)).and_then(Value::as_f64);
             let pres = h_pres.and_then(|a| a.get(i)).and_then(Value::as_f64);
-            let cloud = h_cloud
-                .and_then(|a| a.get(i))
-                .and_then(Value::as_f64)
-                .map(|v| v.clamp(0.0, 100.0) as u8);
+            let cloud = h_cloud.and_then(|a| a.get(i)).and_then(Value::as_f64).map(|v| v.clamp(0.0, 100.0) as u8);
             let vis = h_vis.and_then(|a| a.get(i)).and_then(Value::as_f64);
             let rad = h_rad.and_then(|a| a.get(i)).and_then(Value::as_f64);
 
@@ -416,21 +369,12 @@ impl OpenMeteoProvider {
             let h_aq = &v["hourly"];
             let times = h_aq["time"].as_array().cloned().unwrap_or_default();
             let hour = current_time.get(..13).unwrap_or(&current_time);
-            let start = times
-                .iter()
-                .position(|t| t.as_str().is_some_and(|t| t.get(..13).unwrap_or(t) >= hour))
-                .unwrap_or(0);
+            let start = times.iter().position(|t| t.as_str().is_some_and(|t| t.get(..13).unwrap_or(t) >= hour)).unwrap_or(0);
             let hourly_start = times.get(start).and_then(Value::as_str).map(str::to_string);
             let series = |key: &str| -> Vec<Option<f64>> {
-                h_aq[key]
-                    .as_array()
-                    .map(|arr| arr.iter().skip(start).take(24).map(Value::as_f64).collect())
-                    .unwrap_or_default()
+                h_aq[key].as_array().map(|arr| arr.iter().skip(start).take(24).map(Value::as_f64).collect()).unwrap_or_default()
             };
-            let hourly_us_aqi = series("us_aqi")
-                .into_iter()
-                .map(|v| v.map(|n| n.round().clamp(0.0, 500.0) as u16))
-                .collect();
+            let hourly_us_aqi = series("us_aqi").into_iter().map(|v| v.map(|n| n.round().clamp(0.0, 500.0) as u16)).collect();
             let hourly_pm2_5 = series("pm2_5");
             let hourly_uv = series("uv_index");
 
@@ -478,7 +422,6 @@ impl OpenMeteoProvider {
             uv_index: current_uv,
         };
 
-
         Ok(ForecastSnapshot {
             location: loc,
             fetched_at,
@@ -501,11 +444,8 @@ impl OpenMeteoProvider {
         let (Some(times), Some(precip)) = (m["time"].as_array(), m["precipitation"].as_array()) else {
             return Vec::new();
         };
-        let pairs: Vec<(String, f64)> = times
-            .iter()
-            .zip(precip)
-            .filter_map(|(t, p)| Some((t.as_str()?.to_string(), p.as_f64()?)))
-            .collect();
+        let pairs: Vec<(String, f64)> =
+            times.iter().zip(precip).filter_map(|(t, p)| Some((t.as_str()?.to_string(), p.as_f64()?))).collect();
         // The step containing now is the last one that starts at or before it.
         let start = pairs.iter().rposition(|(t, _)| t.as_str() <= current_time).unwrap_or(0);
         pairs.into_iter().skip(start).take(9).collect()
@@ -540,10 +480,9 @@ impl OpenMeteoProvider {
         };
         for (id, name, res) in MODELS {
             let (d, h) = (&v["daily"], &v["hourly"]);
-            let (Some(max), Some(min)) = (
-                values(d, &format!("temperature_2m_max_{id}")),
-                values(d, &format!("temperature_2m_min_{id}")),
-            ) else {
+            let (Some(max), Some(min)) =
+                (values(d, &format!("temperature_2m_max_{id}")), values(d, &format!("temperature_2m_min_{id}")))
+            else {
                 continue;
             };
             out.push(crate::model::ModelSeries {
@@ -647,12 +586,7 @@ impl WeatherProvider for OpenMeteoProvider {
         let limit = limit.clamp(1, 20);
         let v = self.get_json(
             &self.config.geocoding_url,
-            &[
-                ("name", q.to_string()),
-                ("count", limit.to_string()),
-                ("language", "en".into()),
-                ("format", "json".into()),
-            ],
+            &[("name", q.to_string()), ("count", limit.to_string()), ("language", "en".into()), ("format", "json".into())],
         )?;
         Self::parse_geocoding_json(&v, limit)
     }
@@ -663,11 +597,7 @@ impl WeatherProvider for OpenMeteoProvider {
         }
         let lat = format!("{:.4}", location.latitude);
         let lon = format!("{:.4}", location.longitude);
-        let tz = if location.timezone.trim().is_empty() {
-            "auto"
-        } else {
-            location.timezone.as_str()
-        };
+        let tz = if location.timezone.trim().is_empty() { "auto" } else { location.timezone.as_str() };
 
         let forecast_val = self.get_json(
             &self.config.forecast_url,
@@ -715,18 +645,9 @@ impl WeatherProvider for OpenMeteoProvider {
             )
             .ok();
 
-        let now = SystemTime::now()
-            .duration_since(UNIX_EPOCH)
-            .map(|d| d.as_secs() as i64)
-            .unwrap_or(0);
+        let now = SystemTime::now().duration_since(UNIX_EPOCH).map(|d| d.as_secs() as i64).unwrap_or(0);
 
-        let mut snapshot = Self::parse_forecast_json(
-            location,
-            &forecast_val,
-            aq_val.as_ref(),
-            now,
-            self.attribution(),
-        )?;
+        let mut snapshot = Self::parse_forecast_json(location, &forecast_val, aq_val.as_ref(), now, self.attribution())?;
 
         // The same days and hours, from each compared model.
         let models_val = self
@@ -881,14 +802,8 @@ mod tests {
             Some(149.0),
         );
 
-        let snap = OpenMeteoProvider::parse_forecast_json(
-            &loc,
-            &v_fc,
-            Some(&v_aq),
-            1_760_000_000,
-            provider.attribution(),
-        )
-        .unwrap();
+        let snap =
+            OpenMeteoProvider::parse_forecast_json(&loc, &v_fc, Some(&v_aq), 1_760_000_000, provider.attribution()).unwrap();
 
         assert_eq!(snap.current.temperature_c, 24.5);
         assert_eq!(snap.current.condition, WeatherCondition::PartlyCloudy);
@@ -994,7 +909,8 @@ mod tests {
             }
         });
         let loc = Location::new("Austin", None, None, Some("US".into()), 30.27, -97.74, None, None);
-        let snap = OpenMeteoProvider::parse_forecast_json(&loc, &v_fc, Some(&aq), 0, OpenMeteoProvider::default().attribution()).unwrap();
+        let snap = OpenMeteoProvider::parse_forecast_json(&loc, &v_fc, Some(&aq), 0, OpenMeteoProvider::default().attribution())
+            .unwrap();
         let aq = snap.air_quality.unwrap();
         assert_eq!(aq.hourly_start.as_deref(), Some("2026-10-18T14:00"));
         assert_eq!(aq.hourly_us_aqi, vec![None, Some(30)]);
@@ -1005,25 +921,15 @@ mod tests {
     fn uses_the_customer_host_with_a_key() {
         let keyed = OpenMeteoProvider::new(OpenMeteoConfig { api_key: Some("k".into()), ..Default::default() });
         assert_eq!(keyed.endpoint(DEFAULT_FORECAST_URL), "https://customer-api.open-meteo.com/v1/forecast");
-        assert_eq!(
-            keyed.endpoint(DEFAULT_AIR_QUALITY_URL),
-            "https://customer-air-quality-api.open-meteo.com/v1/air-quality"
-        );
+        assert_eq!(keyed.endpoint(DEFAULT_AIR_QUALITY_URL), "https://customer-air-quality-api.open-meteo.com/v1/air-quality");
         assert_eq!(keyed.endpoint("https://meteo.example.com/v1/forecast"), "https://meteo.example.com/v1/forecast");
         assert_eq!(OpenMeteoProvider::default().endpoint(DEFAULT_FORECAST_URL), DEFAULT_FORECAST_URL);
     }
 
     #[test]
     fn enforces_commercial_licensing_guard() {
-        let provider = OpenMeteoProvider::new(OpenMeteoConfig {
-            commercial_use: true,
-            api_key: None,
-            ..Default::default()
-        });
-        assert_eq!(
-            provider.check_licensing(),
-            Err(ProviderError::CommercialKeyRequired)
-        );
+        let provider = OpenMeteoProvider::new(OpenMeteoConfig { commercial_use: true, api_key: None, ..Default::default() });
+        assert_eq!(provider.check_licensing(), Err(ProviderError::CommercialKeyRequired));
 
         let with_key = OpenMeteoProvider::new(OpenMeteoConfig {
             commercial_use: true,

@@ -28,12 +28,7 @@ pub fn build(page: &Page) {
     g.add(&widgets::segmented_row(
         "Wind speed",
         "Unit for wind speed and gusts.",
-        widgets::opts(&[
-            ("kmh", "km/h"),
-            ("mph", "mph"),
-            ("ms", "m/s"),
-            ("knots", "kn"),
-        ]),
+        widgets::opts(&[("kmh", "km/h"), ("mph", "mph"), ("ms", "m/s"), ("knots", "kn")]),
         p.wind_speed_unit.as_str(),
         |v| apply_units(|p| p.wind_speed_unit = WindSpeedUnit::from_id(&v)),
     ));
@@ -68,12 +63,7 @@ pub fn build(page: &Page) {
     g.add(&widgets::segmented_row(
         "Default map overlay",
         "Initial overlay shown on the Radar & Overlays page.",
-        widgets::opts(&[
-            ("radar", "Radar"),
-            ("satellite", "Satellite"),
-            ("wind", "Wind"),
-            ("temp", "Temp"),
-        ]),
+        widgets::opts(&[("radar", "Radar"), ("satellite", "Satellite"), ("wind", "Wind"), ("temp", "Temp")]),
         &p.default_radar_layer,
         |v| apply_units(|p| p.default_radar_layer = v),
     ));
@@ -87,11 +77,18 @@ pub fn build(page: &Page) {
             window::restart_refresh_timer();
         },
     ));
-    let (row, _) = widgets::slider_row("Radar opacity", "Blend the weather overlay with the map below it.",
-        (35.0, 100.0, 5.0), p.radar_opacity_pct as f64, 0, "%", |value| {
+    let (row, _) = widgets::slider_row(
+        "Radar opacity",
+        "Blend the weather overlay with the map below it.",
+        (35.0, 100.0, 5.0),
+        p.radar_opacity_pct as f64,
+        0,
+        "%",
+        |value| {
             prefs::update(|p| p.radar_opacity_pct = value.round().clamp(35.0, 100.0) as u8);
             window::rerender_current();
-        });
+        },
+    );
     g.add(&row);
     let (r, _) = widgets::switch_row(
         "US severe-weather alerts",

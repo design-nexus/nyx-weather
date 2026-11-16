@@ -19,12 +19,7 @@ type Shortcut = (&'static [&'static str], &'static str);
 /// Every shortcut as key caps, for the card's Keyboard group.
 fn shortcuts() -> &'static [Shortcut] {
     static ALL: std::sync::OnceLock<Vec<Shortcut>> = std::sync::OnceLock::new();
-    ALL.get_or_init(|| {
-        window::SHORTCUTS
-            .iter()
-            .map(|(keys, what)| (&*window::shortcut_caps(keys).leak(), *what))
-            .collect()
-    })
+    ALL.get_or_init(|| window::SHORTCUTS.iter().map(|(keys, what)| (&*window::shortcut_caps(keys).leak(), *what)).collect())
 }
 
 fn spec() -> Spec {

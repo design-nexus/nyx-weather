@@ -4,12 +4,10 @@
 
 use crate::maprender::MapGeom;
 use crate::theme::{self, Rgb};
-use gtk::prelude::*;
 use gtk::cairo;
-use nyx_weather_core::{
-    Echo, FieldGrid, ForecastSnapshot, MoonPhaseInfo, RadarLayerKind, UnitPrefs,
-};
+use gtk::prelude::*;
 use nyx_weather_core::reflectivity::nws_color;
+use nyx_weather_core::{Echo, FieldGrid, ForecastSnapshot, MoonPhaseInfo, RadarLayerKind, UnitPrefs};
 use std::f64::consts::PI;
 
 /// Chart and map labels are in the theme's interface font: the first family of
@@ -137,7 +135,13 @@ pub fn line_chart(
 
         // Decimals enough to tell the labels apart: a pressure in inHg moves by tenths.
         let span = max_v - min_v;
-        let digits = if span < 2.0 { 2 } else if span < 20.0 { 1 } else { 0 };
+        let digits = if span < 2.0 {
+            2
+        } else if span < 20.0 {
+            1
+        } else {
+            0
+        };
 
         // Horizontal grid lines + Y-axis labels
         cr.select_font_face(&ui_font(), cairo::FontSlant::Normal, cairo::FontWeight::Normal);
@@ -190,11 +194,7 @@ pub fn line_chart(
                 if i % stride != 0 && i + 1 != n {
                     continue;
                 }
-                let x = if n > 1 {
-                    pad_l + (i as f64 / (n - 1) as f64) * cw
-                } else {
-                    pad_l + cw * 0.5
-                };
+                let x = if n > 1 { pad_l + (i as f64 / (n - 1) as f64) * cw } else { pad_l + cw * 0.5 };
                 cr.move_to((x - 14.0).clamp(pad_l, pad_l + cw - 30.0), h - 7.0);
                 let _ = cr.show_text(lbl);
             }
@@ -319,17 +319,17 @@ pub fn line_chart(
             }
             for s in &series {
                 if let Some(v) = s.values.get(i).filter(|v| v.is_finite()) {
-                    lines.push((Some(series_color(s.tone)), format!("{}: {v:.prec$}{unit_suffix}", s.label, prec = digits.max(1))));
+                    lines.push((
+                        Some(series_color(s.tone)),
+                        format!("{}: {v:.prec$}{unit_suffix}", s.label, prec = digits.max(1)),
+                    ));
                 }
             }
             if let Some(pct) = bars_0_to_100.as_ref().and_then(|b| b.get(i)) {
                 lines.push((Some(wc.rain), format!("Chance of rain: {pct:.0}%")));
             }
             cr.set_font_size(10.5);
-            let widest = lines
-                .iter()
-                .filter_map(|(_, t)| cr.text_extents(t).ok().map(|e| e.x_advance()))
-                .fold(0.0, f64::max);
+            let widest = lines.iter().filter_map(|(_, t)| cr.text_extents(t).ok().map(|e| e.x_advance())).fold(0.0, f64::max);
             let (bw, bh) = (widest + 20.0, lines.len() as f64 * 15.0 + 8.0);
             let bx = if x + 10.0 + bw < w { x + 10.0 } else { (x - 10.0 - bw).max(0.0) };
             let by = pad_t;
@@ -487,11 +487,7 @@ pub fn solar_arc_canvas(
 
         set_rgb(cr, text, 0.92);
         cr.move_to(12.0, 18.0);
-        let _ = cr.show_text(if is_day {
-            "☀ Sun above horizon"
-        } else {
-            "☾ Sun below horizon (Night)"
-        });
+        let _ = cr.show_text(if is_day { "☀ Sun above horizon" } else { "☾ Sun below horizon (Night)" });
     });
 
     area
@@ -808,11 +804,7 @@ fn draw_temp_field(
                 let _ = cr.fill();
             }
         }
-        legend(
-            cr,
-            &format!("2 m temperature {} – {}", units.temperature.format(lo), units.temperature.format(hi)),
-            wc.sun,
-        );
+        legend(cr, &format!("2 m temperature {} – {}", units.temperature.format(lo), units.temperature.format(hi)), wc.sun);
     }
 
     let Some((plo, phi)) = f.range(|p| p.pressure_hpa) else { return };

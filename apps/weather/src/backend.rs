@@ -2,8 +2,8 @@
 
 use crate::paths;
 use nyx_weather_core::{
-    Cache, FIELD_SIZE, FieldGrid, ForecastSnapshot, Location, OpenMeteoConfig, OpenMeteoProvider, ProviderError,
-    RadarClient, RadarManifest, TileView, WeatherProvider,
+    Cache, FIELD_SIZE, FieldGrid, ForecastSnapshot, Location, OpenMeteoConfig, OpenMeteoProvider, ProviderError, RadarClient,
+    RadarManifest, TileView, WeatherProvider,
 };
 use std::time::{SystemTime, UNIX_EPOCH};
 
@@ -17,10 +17,7 @@ pub struct FetchOutcome {
 }
 
 pub fn now_epoch() -> i64 {
-    SystemTime::now()
-        .duration_since(UNIX_EPOCH)
-        .map(|d| d.as_secs() as i64)
-        .unwrap_or(0)
+    SystemTime::now().duration_since(UNIX_EPOCH).map(|d| d.as_secs() as i64).unwrap_or(0)
 }
 
 /// Format how long ago `fetched_at` occurred (e.g. `"just now"`, `"4m ago"`, `"2h ago"`).
@@ -78,52 +75,30 @@ pub fn prune_forecasts(keep: Vec<String>) {
 
 /// Load a fresh cached forecast or fetch from Open-Meteo on a worker thread,
 /// preserving and returning any cached snapshot if the network is unreachable.
-pub fn load_or_fetch(
-    location: &Location,
-    config: &OpenMeteoConfig,
-    max_age_secs: i64,
-    force_refresh: bool,
-) -> FetchOutcome {
+pub fn load_or_fetch(location: &Location, config: &OpenMeteoConfig, max_age_secs: i64, force_refresh: bool) -> FetchOutcome {
     let now = now_epoch();
     let cached_snapshot = get_cached(&location.id);
-    let is_stale = with_cache(|c| c.is_stale(&location.id, max_age_secs, now).ok())
-        .flatten()
-        .unwrap_or(true);
+    let is_stale = with_cache(|c| c.is_stale(&location.id, max_age_secs, now).ok()).flatten().unwrap_or(true);
 
     if !force_refresh
         && !is_stale
         && let Some(snap) = cached_snapshot
     {
-        return FetchOutcome {
-            snapshot: Some(snap),
-            stale_fallback: false,
-            error: None,
-        };
+        return FetchOutcome { snapshot: Some(snap), stale_fallback: false, error: None };
     }
 
     let provider = OpenMeteoProvider::new(config.clone());
     match provider.fetch_forecast(location) {
         Ok(fresh) => {
             with_cache(|c| c.put_forecast(&fresh));
-            FetchOutcome {
-                snapshot: Some(fresh),
-                stale_fallback: false,
-                error: None,
-            }
+            FetchOutcome { snapshot: Some(fresh), stale_fallback: false, error: None }
         }
-        Err(err) => FetchOutcome {
-            stale_fallback: cached_snapshot.is_some(),
-            snapshot: cached_snapshot,
-            error: Some(err),
-        },
+        Err(err) => FetchOutcome { stale_fallback: cached_snapshot.is_some(), snapshot: cached_snapshot, error: Some(err) },
     }
 }
 
 /// Search locations using the SQLite geocoding cache first, then Open-Meteo Geocoding API.
-pub fn search_locations(
-    query: &str,
-    config: &OpenMeteoConfig,
-) -> Result<Vec<Location>, ProviderError> {
+pub fn search_locations(query: &str, config: &OpenMeteoConfig) -> Result<Vec<Location>, ProviderError> {
     let q = query.trim();
     if q.len() < 2 {
         return Ok(Vec::new());
@@ -147,8 +122,7 @@ fn radar_client() -> &'static RadarClient {
 }
 
 fn manifest_cache() -> &'static std::sync::Mutex<Option<RadarManifest>> {
-    static MANIFEST: std::sync::OnceLock<std::sync::Mutex<Option<RadarManifest>>> =
-        std::sync::OnceLock::new();
+    static MANIFEST: std::sync::OnceLock<std::sync::Mutex<Option<RadarManifest>>> = std::sync::OnceLock::new();
     MANIFEST.get_or_init(|| std::sync::Mutex::new(None))
 }
 

@@ -57,7 +57,9 @@ pub fn format_summary(snap: &ForecastSnapshot, p: &prefs::Prefs, stale_fallback:
         .map(|(i, d)| {
             let name = match i {
                 0 => "Today".to_string(),
-                _ => chrono::NaiveDate::parse_from_str(&d.date, "%Y-%m-%d").map(|n| n.format("%a").to_string()).unwrap_or_default(),
+                _ => {
+                    chrono::NaiveDate::parse_from_str(&d.date, "%Y-%m-%d").map(|n| n.format("%a").to_string()).unwrap_or_default()
+                }
             };
             json!({
                 "day": name,
@@ -119,11 +121,7 @@ pub fn print_waybar_json(refresh_if_stale: bool) {
         backend::load_or_fetch(&loc, &p.open_meteo_config(), max_age, false)
     } else {
         let snap = backend::get_cached(&loc.id);
-        backend::FetchOutcome {
-            snapshot: snap,
-            stale_fallback: false,
-            error: None,
-        }
+        backend::FetchOutcome { snapshot: snap, stale_fallback: false, error: None }
     };
 
     match outcome.snapshot {
@@ -132,10 +130,7 @@ pub fn print_waybar_json(refresh_if_stale: bool) {
             println!("{payload}");
         }
         None => {
-            let err_msg = outcome
-                .error
-                .map(|e| e.to_string())
-                .unwrap_or_else(|| "No cached forecast yet".into());
+            let err_msg = outcome.error.map(|e| e.to_string()).unwrap_or_else(|| "No cached forecast yet".into());
             let out = json!({
                 "text": format!("☁ {}", loc.name),
                 "alt": "offline",
@@ -152,29 +147,17 @@ fn esc(s: &str) -> String {
     gtk::glib::markup_escape_text(s).to_string()
 }
 
-pub fn format_waybar_payload(
-    snap: &ForecastSnapshot,
-    p: &prefs::Prefs,
-    stale_fallback: bool,
-) -> serde_json::Value {
+pub fn format_waybar_payload(snap: &ForecastSnapshot, p: &prefs::Prefs, stale_fallback: bool) -> serde_json::Value {
     let units = p.units();
     let cur = &snap.current;
     let glyph = cur.condition.waybar_glyph(cur.is_day);
     let temp = units.temperature.format(cur.temperature_c);
-    let text = if !snap.alerts.is_empty() {
-        format!("⚠ {glyph} {temp}")
-    } else {
-        format!("{glyph} {temp}")
-    };
+    let text = if !snap.alerts.is_empty() { format!("⚠ {glyph} {temp}") } else { format!("{glyph} {temp}") };
 
     let (hi, lo) = snap.today_high_low_c();
     let wind_dir = cardinal_direction(cur.wind_direction_deg);
     let age = backend::human_age(snap.fetched_at);
-    let status = if stale_fallback {
-        format!("Offline cache ({age})")
-    } else {
-        format!("Updated {age}")
-    };
+    let status = if stale_fallback { format!("Offline cache ({age})") } else { format!("Updated {age}") };
 
     let mut tooltip = format!(
         "{} — {}\nTemperature: {} (Feels like {})\nHigh: {} · Low: {}\nWind: {} {wind_dir} · Humidity: {}%",
@@ -198,11 +181,7 @@ pub fn format_waybar_payload(
     }
     tooltip.push_str(&format!("\n{status} · {}", snap.attribution.provider_name));
 
-    let class = if !snap.alerts.is_empty() {
-        "alert"
-    } else {
-        cur.condition.css_class(cur.is_day)
-    };
+    let class = if !snap.alerts.is_empty() { "alert" } else { cur.condition.css_class(cur.is_day) };
 
     json!({
         "text": text,
@@ -230,9 +209,7 @@ pub fn refresh_all_cli() -> i32 {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use nyx_weather_core::{
-        CurrentWeather, DailyForecast, Location, ProviderAttribution, WeatherCondition,
-    };
+    use nyx_weather_core::{CurrentWeather, DailyForecast, Location, ProviderAttribution, WeatherCondition};
 
     #[test]
     fn formats_waybar_json_with_units_and_tooltip() {

@@ -3,8 +3,7 @@
 pub use nyx_theme::ThemeMode;
 
 use nyx_weather_core::{
-    DistanceUnit, Location, OpenMeteoConfig, PrecipitationUnit, PressureUnit, TemperatureUnit,
-    UnitPrefs, WindSpeedUnit,
+    DistanceUnit, Location, OpenMeteoConfig, PrecipitationUnit, PressureUnit, TemperatureUnit, UnitPrefs, WindSpeedUnit,
 };
 use serde::{Deserialize, Serialize};
 
@@ -118,11 +117,7 @@ impl Prefs {
     }
 
     pub fn active_location(&self) -> Option<Location> {
-        self.saved_locations
-            .iter()
-            .find(|l| l.id == self.active_location_id)
-            .or_else(|| self.saved_locations.first())
-            .cloned()
+        self.saved_locations.iter().find(|l| l.id == self.active_location_id).or_else(|| self.saved_locations.first()).cloned()
     }
 
     pub fn open_meteo_config(&self) -> OpenMeteoConfig {
@@ -148,6 +143,11 @@ impl Prefs {
 /// Synchronously update `~/.config/hypr/nyx.lua` to match `float`.
 /// Returns `true` if the file on disk was modified.
 pub fn write_hypr_rule(float: bool) -> bool {
+    // nyx.lua is Omarchy's (its `o.window` helper); NyxOS doesn't load it, and the window
+    // is floated or tiled live each time it opens instead.
+    if std::path::Path::new("/etc/NIXOS").exists() {
+        return false;
+    }
     let hypr_dir = crate::paths::home().join(".config/hypr");
     let nyx_lua = hypr_dir.join("nyx.lua");
     let rule_line =
@@ -159,10 +159,7 @@ pub fn write_hypr_rule(float: bool) -> bool {
     let existing = std::fs::read_to_string(&nyx_lua).unwrap_or_else(|_| {
         "-- Written by the Nyx installer: Nyx apps that open as floating windows.\n-- Reinstalling an app rewrites this file.\n".to_string()
     });
-    let mut lines: Vec<&str> = existing
-        .lines()
-        .filter(|l| !l.contains("nyx\\.Weather") && !l.contains("nyx.Weather"))
-        .collect();
+    let mut lines: Vec<&str> = existing.lines().filter(|l| !l.contains("nyx\\.Weather") && !l.contains("nyx.Weather")).collect();
     if float {
         lines.push(rule_line);
     }
@@ -213,24 +210,18 @@ pub fn ensure_live_window_state(float: bool) {
 
             if is_floating != float {
                 let action = if float { "on" } else { "off" };
-                let lua_float = format!(
-                    r#"hl.dsp.window.float({{ window = "{win_sel}", action = "{action}" }})"#
-                );
+                let lua_float = format!(r#"hl.dsp.window.float({{ window = "{win_sel}", action = "{action}" }})"#);
                 let ok = std::process::Command::new("hyprctl")
                     .args(["dispatch", &lua_float])
                     .output()
                     .is_ok_and(|o| o.status.success());
                 if !ok {
-                    let _ = std::process::Command::new("hyprctl")
-                        .args(["dispatch", "togglefloating", &win_sel])
-                        .output();
+                    let _ = std::process::Command::new("hyprctl").args(["dispatch", "togglefloating", &win_sel]).output();
                 }
             }
 
             if float {
-                let lua_resize = format!(
-                    r#"hl.dsp.window.resize({{ window = "{win_sel}", x = 460, y = 720 }})"#
-                );
+                let lua_resize = format!(r#"hl.dsp.window.resize({{ window = "{win_sel}", x = 460, y = 720 }})"#);
                 let ok_r = std::process::Command::new("hyprctl")
                     .args(["dispatch", &lua_resize])
                     .output()
@@ -247,9 +238,7 @@ pub fn ensure_live_window_state(float: bool) {
                     .output()
                     .is_ok_and(|o| o.status.success());
                 if !ok_c {
-                    let _ = std::process::Command::new("hyprctl")
-                        .args(["dispatch", "centerwindow", &win_sel])
-                        .output();
+                    let _ = std::process::Command::new("hyprctl").args(["dispatch", "centerwindow", &win_sel]).output();
                 }
             }
         }
@@ -271,10 +260,7 @@ pub fn apply_floating_window(float: bool) {
 /// Read preferences directly from disk without initializing GTK (used by `--waybar` and `--refresh`).
 pub fn read_disk() -> Prefs {
     let path = crate::paths::prefs_file();
-    std::fs::read_to_string(path)
-        .ok()
-        .and_then(|s| toml::from_str(&s).ok())
-        .unwrap_or_default()
+    std::fs::read_to_string(path).ok().and_then(|s| toml::from_str(&s).ok()).unwrap_or_default()
 }
 
 nyx_core::prefs_store!(Prefs);

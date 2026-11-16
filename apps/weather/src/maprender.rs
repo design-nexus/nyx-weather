@@ -5,8 +5,8 @@
 //! surface to paint.
 
 use crate::theme::{self, Rgb};
-use gtk::{cairo, gdk_pixbuf};
 use gtk::prelude::*;
+use gtk::{cairo, gdk_pixbuf};
 use nyx_weather_core::{FieldGrid, RadarPalette, TileView, reflectivity, tile_xy};
 
 /// The map on the canvas: the location at the centre of a `w × h` px canvas at zoom `z`.
@@ -134,7 +134,10 @@ pub enum Recolor {
     Basemap(BasemapColors),
     Radar(RadarPalette),
     /// Infrared satellite: clear ground transparent, cloud tops from `low` to `high`.
-    Infrared { low: Rgb, high: Rgb },
+    Infrared {
+        low: Rgb,
+        high: Rgb,
+    },
 }
 
 impl Recolor {
@@ -147,9 +150,7 @@ impl Recolor {
     /// The straight RGBA to draw a straight-RGBA tile pixel in.
     fn apply(&self, px: [u8; 4]) -> [u8; 4] {
         match self {
-            Self::Radar(palette) => {
-                reflectivity::decode(*palette, px).map(reflectivity::nws_color).unwrap_or([0; 4])
-            }
+            Self::Radar(palette) => reflectivity::decode(*palette, px).map(reflectivity::nws_color).unwrap_or([0; 4]),
             Self::Basemap(colors) => {
                 let [r, g, b] = colors.tint([px[0] as f64, px[1] as f64, px[2] as f64]);
                 [r.clamp(0.0, 255.0) as u8, g.clamp(0.0, 255.0) as u8, b.clamp(0.0, 255.0) as u8, px[3]]
@@ -161,12 +162,7 @@ impl Recolor {
                 }
                 let norm = ((luma - 0.36) / 0.64).clamp(0.0, 1.0);
                 let c = low.mix(*high, norm);
-                [
-                    (c.0 * 255.0) as u8,
-                    (c.1 * 255.0) as u8,
-                    (c.2 * 255.0) as u8,
-                    (norm * 225.0).clamp(30.0, 230.0) as u8,
-                ]
+                [(c.0 * 255.0) as u8, (c.1 * 255.0) as u8, (c.2 * 255.0) as u8, (norm * 225.0).clamp(30.0, 230.0) as u8]
             }
         }
     }
@@ -185,8 +181,8 @@ pub struct Raster {
 impl Raster {
     /// The picture as a surface that paints at canvas size (GTK thread).
     pub fn into_surface(self) -> Option<cairo::ImageSurface> {
-        let s = cairo::ImageSurface::create_for_data(self.data, cairo::Format::ARgb32, self.width, self.height, self.stride)
-            .ok()?;
+        let s =
+            cairo::ImageSurface::create_for_data(self.data, cairo::Format::ARgb32, self.width, self.height, self.stride).ok()?;
         s.set_device_scale(self.scale, self.scale);
         Some(s)
     }

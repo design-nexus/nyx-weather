@@ -31,10 +31,7 @@ impl NoaaAlertProvider {
     fn http() -> Result<Client, ProviderError> {
         let mut headers = HeaderMap::new();
         headers.insert(ACCEPT, HeaderValue::from_static("application/geo+json"));
-        headers.insert(
-            USER_AGENT,
-            HeaderValue::from_static("NyxWeather/0.1 (https://github.com/design-nexus/nyx)"),
-        );
+        headers.insert(USER_AGENT, HeaderValue::from_static("NyxWeather/0.1 (https://github.com/design-nexus/nyx)"));
         Client::builder()
             .default_headers(headers)
             .connect_timeout(Duration::from_secs(4))
@@ -52,18 +49,10 @@ impl NoaaAlertProvider {
             let Some(event) = props["event"].as_str().filter(|s| !s.is_empty()) else {
                 continue;
             };
-            let id = props["id"]
-                .as_str()
-                .or_else(|| feature["id"].as_str())
-                .unwrap_or(event)
-                .to_string();
+            let id = props["id"].as_str().or_else(|| feature["id"].as_str()).unwrap_or(event).to_string();
             let headline = props["headline"].as_str().unwrap_or(event).to_string();
             let description = props["description"].as_str().unwrap_or("").trim().to_string();
-            let instruction = props["instruction"]
-                .as_str()
-                .map(str::trim)
-                .filter(|s| !s.is_empty())
-                .map(str::to_string);
+            let instruction = props["instruction"].as_str().map(str::trim).filter(|s| !s.is_empty()).map(str::to_string);
             let severity = match props["severity"].as_str().unwrap_or("Minor") {
                 "Extreme" => AlertSeverity::Extreme,
                 "Severe" => AlertSeverity::Severe,
@@ -134,12 +123,7 @@ impl AlertProvider for NoaaAlertProvider {
         if !(-90.0..=90.0).contains(&latitude) || !(-180.0..=180.0).contains(&longitude) {
             return Err(ProviderError::InvalidLocation);
         }
-        let url = format!(
-            "{}/alerts/active?point={:.4},{:.4}",
-            self.base_url.trim_end_matches('/'),
-            latitude,
-            longitude
-        );
+        let url = format!("{}/alerts/active?point={:.4},{:.4}", self.base_url.trim_end_matches('/'), latitude, longitude);
         let resp = Self::http()?.get(&url).send().map_err(|_| ProviderError::Offline)?;
         match resp.status().as_u16() {
             200..=299 => {}
@@ -147,9 +131,7 @@ impl AlertProvider for NoaaAlertProvider {
             _ => return Err(ProviderError::Failed("Could not fetch NOAA weather alerts".into())),
         }
         let mut bytes = Vec::new();
-        resp.take(MAX_BODY + 1)
-            .read_to_end(&mut bytes)
-            .map_err(|_| ProviderError::Offline)?;
+        resp.take(MAX_BODY + 1).read_to_end(&mut bytes).map_err(|_| ProviderError::Offline)?;
         if bytes.len() as u64 > MAX_BODY {
             return Err(ProviderError::InvalidResponse);
         }

@@ -161,8 +161,10 @@ mod tests {
 
     #[test]
     fn an_update_replaces_what_it_references() {
-        let old = alert("A.1", "Wind Advisory", "2026-11-13T03:00:00-06:00", "2026-11-13T06:00:00-06:00", "2026-11-13T18:00:00-06:00");
-        let mut new = alert("A.2", "Wind Advisory", "2026-11-13T09:00:00-06:00", "2026-11-13T06:00:00-06:00", "2026-11-13T21:00:00-06:00");
+        let old =
+            alert("A.1", "Wind Advisory", "2026-11-13T03:00:00-06:00", "2026-11-13T06:00:00-06:00", "2026-11-13T18:00:00-06:00");
+        let mut new =
+            alert("A.2", "Wind Advisory", "2026-11-13T09:00:00-06:00", "2026-11-13T06:00:00-06:00", "2026-11-13T21:00:00-06:00");
         new.references = vec!["A.1".into()];
         let merged = merge_alerts(vec![old, new]);
         assert_eq!(merged.len(), 1);
@@ -173,9 +175,11 @@ mod tests {
 
     #[test]
     fn the_same_event_twice_keeps_the_newest_text() {
-        let mut zone = alert("Z", "Flood Warning", "2026-11-13T03:00:00-06:00", "2026-11-13T06:00:00-06:00", "2026-11-14T06:00:00-06:00");
+        let mut zone =
+            alert("Z", "Flood Warning", "2026-11-13T03:00:00-06:00", "2026-11-13T06:00:00-06:00", "2026-11-14T06:00:00-06:00");
         zone.description = "Old text.".into();
-        let mut county = alert("C", "Flood Warning", "2026-11-13T09:00:00-06:00", "2026-11-13T06:00:00-06:00", "2026-11-14T06:00:00-06:00");
+        let mut county =
+            alert("C", "Flood Warning", "2026-11-13T09:00:00-06:00", "2026-11-13T06:00:00-06:00", "2026-11-14T06:00:00-06:00");
         county.description = "New text.".into();
         let merged = merge_alerts(vec![zone, county]);
         assert_eq!(merged.len(), 1);
@@ -187,9 +191,16 @@ mod tests {
 
     #[test]
     fn different_events_stay_apart_most_severe_first() {
-        let mut watch = alert("W", "Winter Storm Watch", "2026-11-13T09:00:00-06:00", "2026-11-14T00:00:00-06:00", "2026-11-14T12:00:00-06:00");
+        let mut watch = alert(
+            "W",
+            "Winter Storm Watch",
+            "2026-11-13T09:00:00-06:00",
+            "2026-11-14T00:00:00-06:00",
+            "2026-11-14T12:00:00-06:00",
+        );
         watch.severity = AlertSeverity::Moderate;
-        let warning = alert("F", "Freeze Warning", "2026-11-13T09:00:00-06:00", "2026-11-15T00:00:00-06:00", "2026-11-15T08:00:00-06:00");
+        let warning =
+            alert("F", "Freeze Warning", "2026-11-13T09:00:00-06:00", "2026-11-15T00:00:00-06:00", "2026-11-15T08:00:00-06:00");
         let other_office = WeatherAlert { id: "G".into(), sender: Some("NWS Atlanta GA".into()), ..warning.clone() };
         let merged = merge_alerts(vec![watch, warning, other_office]);
         assert_eq!(merged.iter().map(|a| a.id.as_str()).collect::<Vec<_>>(), ["F", "G", "W"]);
@@ -205,8 +216,10 @@ mod tests {
 
     #[test]
     fn past_periods_drop_and_keys_name_every_message() {
-        let a = alert("F.1", "Freeze Warning", "2026-11-13T09:00:00-06:00", "2026-11-14T00:00:00-06:00", "2026-11-14T08:00:00-06:00");
-        let b = alert("F.2", "Freeze Warning", "2026-11-13T09:00:00-06:00", "2026-11-15T00:00:00-06:00", "2026-11-15T08:00:00-06:00");
+        let a =
+            alert("F.1", "Freeze Warning", "2026-11-13T09:00:00-06:00", "2026-11-14T00:00:00-06:00", "2026-11-14T08:00:00-06:00");
+        let b =
+            alert("F.2", "Freeze Warning", "2026-11-13T09:00:00-06:00", "2026-11-15T00:00:00-06:00", "2026-11-15T08:00:00-06:00");
         let merged = merge_alerts(vec![a, b]).remove(0);
         let saturday_noon = ts(Some("2026-11-14T12:00:00-06:00")).unwrap();
         let later = merged.clone().advanced_to(saturday_noon).unwrap();

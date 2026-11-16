@@ -12,10 +12,7 @@ const REMEMBERED: usize = 300;
 /// messages they update or their VTEC events has been, so an update or another segment
 /// of the same warning stays quiet.
 fn fresh<'a>(alerts: &'a [WeatherAlert], notified: &[String]) -> Vec<&'a WeatherAlert> {
-    alerts
-        .iter()
-        .filter(|a| a.severity >= AlertSeverity::Severe && !a.keys().iter().any(|k| notified.contains(k)))
-        .collect()
+    alerts.iter().filter(|a| a.severity >= AlertSeverity::Severe && !a.keys().iter().any(|k| notified.contains(k))).collect()
 }
 
 /// Notify each Severe or Extreme alert in `snap` not notified before.

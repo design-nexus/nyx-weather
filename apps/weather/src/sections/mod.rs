@@ -161,11 +161,7 @@ pub fn range_bar(lo: f64, hi: f64, period_lo: f64, period_span: f64, width: i32)
 
 pub fn format_clock_label(iso: &str, use_24h: bool) -> String {
     if let Ok(dt) = NaiveDateTime::parse_from_str(iso, "%Y-%m-%dT%H:%M") {
-        if use_24h {
-            dt.format("%H:%M").to_string()
-        } else {
-            dt.format("%-I %p").to_string()
-        }
+        if use_24h { dt.format("%H:%M").to_string() } else { dt.format("%-I %p").to_string() }
     } else if let Some(hm) = iso.split('T').nth(1) {
         hm.get(..5).unwrap_or(hm).to_string()
     } else {
@@ -176,11 +172,7 @@ pub fn format_clock_label(iso: &str, use_24h: bool) -> String {
 pub fn format_sun_time(iso: Option<&str>, use_24h: bool) -> String {
     let Some(s) = iso else { return "–".into() };
     if let Ok(dt) = NaiveDateTime::parse_from_str(s, "%Y-%m-%dT%H:%M") {
-        if use_24h {
-            dt.format("%H:%M").to_string()
-        } else {
-            dt.format("%-I:%M %p").to_string()
-        }
+        if use_24h { dt.format("%H:%M").to_string() } else { dt.format("%-I:%M %p").to_string() }
     } else {
         s.to_string()
     }
