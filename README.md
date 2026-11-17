@@ -36,6 +36,8 @@ you save, in a GTK 4 window.
 
 ## Install
 
+On NyxOS, install Weather from the Store or with `nyx install nyx-weather`. On Omarchy:
+
 ```sh
 curl -fsSL https://raw.githubusercontent.com/design-nexus/nyx-weather/main/install.sh | bash -s -- weather
 ```
