@@ -1,4 +1,4 @@
-//! Weather — native desktop weather application for Omarchy and the Nyx suite.
+//! Weather — native desktop weather application for NyxOS, Omarchy and the Nyx suite.
 
 mod backend;
 mod charts;
