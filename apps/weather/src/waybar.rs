@@ -282,6 +282,8 @@ mod tests {
         let p = prefs::Prefs {
             temperature_unit: nyx_weather_core::TemperatureUnit::Fahrenheit,
             wind_speed_unit: nyx_weather_core::WindSpeedUnit::Mph,
+            // The default follows the locale; these expect a 12-hour clock.
+            use_24h_time: false,
             ..Default::default()
         };
         let out = format_waybar_payload(&snap, &p, false);
